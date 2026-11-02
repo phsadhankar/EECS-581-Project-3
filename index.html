@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta
+      name="description"
+      content="A scientific calculator that follows operator precedence and shows exactly where an expression went wrong."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <title>Calculator</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧮%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="bg" aria-hidden="true"></div>
+    <main>
+      <input
+        id="expr"
+        type="text"
+        enterkeyhint="done"
+        spellcheck="false"
+        autocomplete="off"
+        autocapitalize="off"
+        placeholder="0"
+        aria-label="Expression"
+      />
+
+      <div id="out" aria-live="polite">0</div>
+      <div id="msg" aria-live="polite"></div>
+
+      <div class="keys sci">
+        <button data-k="sin(">sin</button>
+        <button data-k="cos(">cos</button>
+        <button data-k="tan(">tan</button>
+        <button data-k="π">π</button>
+        <button data-k="ln(">ln</button>
+        <button data-k="log(">log</button>
+        <button data-k="sqrt(">√</button>
+        <button data-k="^">xʸ</button>
+        <button data-k="(">(</button>
+        <button data-k=")">)</button>
+        <button data-k="abs(">abs</button>
+        <button data-k="e">e</button>
+      </div>
+
+      <div class="keys">
+        <button data-a="clear" class="op">AC</button>
+        <button data-a="back" class="op" aria-label="Delete">⌫</button>
+        <button
+          data-a="angle"
+          class="op"
+          id="angle"
+          aria-label="Angle unit: radians. Press to switch to degrees."
+        >
+          Rad
+        </button>
+        <button data-k="÷" class="op">÷</button>
+        <button data-k="7">7</button>
+        <button data-k="8">8</button>
+        <button data-k="9">9</button>
+        <button data-k="×" class="op">×</button>
+        <button data-k="4">4</button>
+        <button data-k="5">5</button>
+        <button data-k="6">6</button>
+        <button data-k="−" class="op">−</button>
+        <button data-k="1">1</button>
+        <button data-k="2">2</button>
+        <button data-k="3">3</button>
+        <button data-k="+" class="op">+</button>
+        <button data-k="0" class="wide">0</button>
+        <button data-k=".">.</button>
+        <button data-a="eq" class="eq">=</button>
+      </div>
+
+      <details id="steps" hidden>
+        <summary>Show steps</summary>
+        <ol id="stepList"></ol>
+      </details>
+    </main>
+
+    <noscript>This calculator needs JavaScript.</noscript>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/particles.js/2.0.0/particles.min.js"></script>
+    <script src="./script.js"></script>
+  </body>
+</html>
