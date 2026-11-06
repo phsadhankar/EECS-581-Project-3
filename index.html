@@ -35,6 +35,28 @@
       <div id="out" aria-live="polite">0</div>
       <div id="msg" aria-live="polite"></div>
 
+      <div id="converterPanel" hidden="">
+
+        <label for="conversionCategory">Conversion Type:</label>
+        <select id="conversionCategory">
+          <option value="">Select a category</option>
+          <option value="length">Length</option>
+          <option value="mass">Mass / Weight</option>
+          <option value="volume">Volume</option>
+          <option value="temperature">Temperature</option>
+          <option value="currency">Currency</option>
+        </select>
+
+        <div id="conversionControls" hidden>
+
+          <label for="fromUnit">From:</label>
+          <select id="fromUnit"></select>
+
+          <label for="toUnit">To:</label>
+          <select id="toUnit"></select>
+        </div>
+      </div>
+
       <div class="keys sci">
         <button data-k="sin(">sin</button>
         <button data-k="cos(">cos</button>
@@ -48,6 +70,7 @@
         <button data-k=")">)</button>
         <button data-k="abs(">abs</button>
         <button data-k="e">e</button>
+        <button data-a="converter" class="op">unit</button>
       </div>
 
       <div class="keys">
