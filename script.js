@@ -3,7 +3,6 @@
   const $ = id => document.getElementById(id);
   class PErr extends Error { constructor(pos, len, msg) { super(msg); this.pos = pos; this.len = Math.max(1, len); } }
   const OPS = { '+': '+', '-': '-', '−': '-', '*': '*', '×': '*', '·': '*', '/': '/', '÷': '/', '^': '^', '(': '(', ')': ')' };
-  const FUNCS = { sin: 1, cos: 1, tan: 1, asin: 1, acos: 1, atan: 1, sqrt: 1, ln: 1, log: 1, exp: 1, abs: 1 };
   const CONSTS = { pi: Math.PI, 'π': Math.PI, e: Math.E };
 
   function tokenize(s) {
@@ -55,7 +54,7 @@
       if (x.k === 'num') return { t: 'num', v: x.v };
       if (x.k === 'id') {
         if (x.v in CONSTS) return { t: 'num', v: CONSTS[x.v], s: x.v === 'e' ? 'e' : 'π' };
-        if (x.v in FUNCS) {
+        if (functionRegistry.has(x.v)) {
           if (!isOp(peek(), '(')) throw new PErr(x.pos, x.len, `"${x.text}" needs parentheses, for example ${x.text}(1)`);
           const open = next(), a = expr();
           if (!isOp(peek(), ')')) throw new PErr(peek().pos, peek().len, `Missing ")" for the "(" at column ${open.pos + 1}`);
@@ -469,4 +468,113 @@ categorySelect.addEventListener('change', () => {
   matchMedia('(prefers-color-scheme:dark)').addEventListener('change', bg);
   bg();
   if (!matchMedia('(pointer:coarse)').matches) exp.focus();
+
+  // Allow the function menu to insert expressions
+  window.insertCalculatorFunction = function(symbol) {
+    if (!converterPanel.hidden) {
+      closeUnitConverter();
+    }
+
+    insert(symbol);
+  };
+
 })();
+
+// Element Variables
+const menuToggle = document.getElementById("FuncToggle");
+const sideMenu = document.getElementById("sideMenu");
+const categoryFilter = document.getElementById("categoryFilter");
+const functionSearch = document.getElementById("functionSearch");
+const functionList = document.getElementById("functionList");
+
+// Menu Toggle Logic
+menuToggle.addEventListener("click", () => {
+  sideMenu.classList.toggle("open");
+  menuToggle.setAttribute(
+    "aria-expanded",
+    sideMenu.classList.contains("open")
+  );
+});
+
+// Generate category dropdown automatically
+function loadCategories() {
+  const categories = new Set();
+
+  calculatorFunctions.forEach(func => {
+    func.categories.forEach(category => {
+      categories.add(category);
+    });
+  });
+
+  categoryFilter.replaceChildren();
+
+  const allOption = document.createElement("option");
+  allOption.value = "all";
+  allOption.textContent = "All Categories";
+  categoryFilter.appendChild(allOption);
+
+  [...categories].sort().forEach(category => {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = category;
+    categoryFilter.appendChild(option);
+  });
+}
+
+// Display functions matching category and search
+function displayFunctions() {
+  const search = functionSearch.value.toLowerCase().trim();
+  const category = categoryFilter.value;
+
+  const filtered = calculatorFunctions.filter(func => {
+    const matchesCategory =
+      category === "all" ||
+      func.categories.includes(category);
+
+    const matchesSearch =
+      func.name.toLowerCase().includes(search) ||
+      func.symbol.toLowerCase().includes(search) ||
+      func.categories.some(tag =>
+        tag.toLowerCase().includes(search)
+      );
+
+    return matchesCategory && matchesSearch;
+  });
+
+  functionList.replaceChildren();
+
+  if (filtered.length === 0) {
+    const message = document.createElement("p");
+    message.textContent = "No functions found.";
+    functionList.appendChild(message);
+    return;
+  }
+
+  filtered.forEach(func => {
+    const button = document.createElement("button");
+    button.className = "function-item";
+    button.type = "button";
+
+    const name = document.createElement("span");
+    name.textContent = func.name;
+
+    const symbol = document.createElement("small");
+    symbol.textContent = func.symbol;
+
+    button.append(name, symbol);
+
+    button.addEventListener("click", () => {
+      window.insertCalculatorFunction(func.symbol);
+    });
+
+    functionList.appendChild(button);
+  });
+}
+
+// Search and filter events
+categoryFilter.addEventListener("change", displayFunctions);
+functionSearch.addEventListener("input", displayFunctions);
+
+// Initialize
+loadCategories();
+displayFunctions();

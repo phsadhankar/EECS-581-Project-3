@@ -71,6 +71,8 @@
         <button data-k="abs(">abs</button>
         <button data-k="e">e</button>
         <button data-a="converter" class="op">unit</button>
+        <!-- Func Button -->
+        <button id="FuncToggle" class="op">func</button>
       </div>
 
       <div class="keys">
@@ -108,8 +110,40 @@
       </details>
     </main>
 
+    <!-- Functions Side Menu -->
+
+    <aside id="sideMenu" class="side-menu">
+
+      <!-- Title -->
+      <div class="side-menu-header">
+        <h2>Functions</h2>
+      </div>
+
+      <!-- Category Filter -->
+      <div class="side-menu-content">
+        <div class="menu-controls">
+          <select id="categoryFilter" aria-label="Filter by category">
+            <option value="all">All Categories</option>
+          </select>
+        
+        <!-- Search Bar-->
+        <input
+          type="text"
+          id="functionSearch"
+          placeholder="Search..."
+          aria-label="Search functions"
+          autocomplete="off"
+        />
+        </div>
+
+        <!-- List of Functions-->
+        <div id="functionList"></div>
+      </div>
+    </aside>
+
     <noscript>This calculator needs JavaScript.</noscript>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/particles.js/2.0.0/particles.min.js"></script>
+    <script src="./functions.js"></script>
     <script src="./script.js"></script>
   </body>
 </html>

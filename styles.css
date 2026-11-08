@@ -213,3 +213,177 @@ noscript {
 #conversionCategory {
   margin-bottom: 10px;
 }
+
+/* Functions Menu */
+
+/* Menu button next to Unit */
+.sci-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.sci-actions button {
+  min-width: 0;
+}
+
+/* Left sidebar */
+.side-menu {
+  position: fixed;
+  top: 50%;
+  right: calc(50% + 216px);
+
+  width: 320px;
+  max-width: 85vw;
+  max-height: 90dvh;
+
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(15px, -50%);
+
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease,
+    visibility 0.25s ease;
+
+  z-index: 1000;
+  overflow-y: auto;
+}
+
+.side-menu.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(0, -50%);
+}
+
+/* Header */
+.side-menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.side-menu-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.side-menu-header button {
+  width: 36px;
+  min-height: 36px;
+  background: var(--key);
+  color: var(--ink);
+  font-size: 20px;
+}
+
+/* Content */
+.side-menu-content {
+  margin-top: 16px;
+}
+
+/* Mobile */
+@media (max-width: 800px) {
+  .side-menu {
+    right: auto;
+    left: 16px;
+    width: min(320px, calc(100vw - 32px));
+    transform: translate(-30px, -50%);
+  }
+
+  .side-menu.open {
+    transform: translate(0, -50%);
+  }
+}
+
+/*** Function Menu ***/
+
+/* Category dropdown and search bar */
+.menu-controls {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+#categoryFilter,
+#functionSearch {
+  min-width: 0;
+  height: 40px;
+  padding: 8px;
+
+  background: var(--key);
+  color: var(--ink);
+
+  border: 1px solid var(--line);
+  border-radius: 8px;
+
+  font: 13px system-ui, sans-serif;
+}
+
+#categoryFilter {
+  flex: 1;
+  cursor: pointer;
+}
+
+#functionSearch {
+  flex: 1;
+}
+
+#categoryFilter:focus,
+#functionSearch:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Space for future functions */
+#functionList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Function list */
+#functionList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* Function buttons */
+.function-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+
+  background: var(--key);
+  color: var(--ink);
+
+  border: 1px solid var(--line);
+  border-radius: (8px);
+
+  font-size: 14px;
+  text-align: left;
+}
+
+.function-item:hover {
+  background: var(--soft);
+  color: var(--accent);
+}
+
+.function-item small {
+  margin-left: 8px;
+  color: var(--mute);
+  font: 12px var(--mono);
+}
