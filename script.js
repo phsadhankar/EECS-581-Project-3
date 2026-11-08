@@ -236,7 +236,7 @@
       if (x.k === 'num') return { t: 'num', v: x.v };
       if (x.k === 'id') {
         if (x.v in CONSTS) return { t: 'num', v: CONSTS[x.v], s: x.v === 'e' ? 'e' : 'π' };
-        if (x.v in FUNCS) {
+        if (functionRegistry.has(x.v)) {
           if (!isOp(peek(), '(')) throw new PErr(x.pos, x.len, `"${x.text}" needs parentheses, for example ${x.text}(1)`);
           const open = next(), a = expr();
           if (!isOp(peek(), ')')) throw new PErr(peek().pos, peek().len, `Missing ")" for the "(" at column ${open.pos + 1}`);
@@ -300,6 +300,18 @@
     }
     catch (e) { if (e instanceof PErr) return { ok: false, err: e }; throw e; }
   }
+  function openConverter() {
+    converterPanel.hidden = false;
+    out.hidden = false;
+    msg.hidden = false;
+  }
+
+  function closeUnitConverter() {
+    converterPanel.hidden = true;
+    out.hidden = false;
+    msg.hidden = false;
+    preview();
+  }
 
   /* ---------- step by step ---------- */
   const SYM = { '+': '+', '-': '−', '*': '×', '/': '÷', '^': '^' };
@@ -353,6 +365,205 @@
   }
 
   /* ---------- interface ---------- */
+  // Unit Converter elements
+  const converterPanel = $('converterPanel');
+  const categorySelect = $('conversionCategory');
+  const conversionControls = $('conversionControls');
+  const fromUnit = $('fromUnit');
+  const toUnit = $('toUnit');
+
+  const conversionUnits = {
+    length: {
+      Meter: 1,
+      Kilometer: 1000,
+      Centimeter: 0.01,
+      Millimeter: 0.001,
+      Mile: 1609.344,
+      Foot: 0.3048,
+      Inch: 0.0254
+    },
+
+    mass: {
+      Kilogram: 1,
+      Gram: 0.001,
+      Milligram: 0.000001,
+      Pound: 0.45359237,
+      Ounce: 0.028349523125
+    },
+
+    volume: {
+      Liter: 1,
+      Milliliter: 0.001,
+      "US Gallon": 3.785411784,
+      "US Quart": 0.946352946,
+      "US Cup": 0.2365882365
+    },
+
+    temperature: {
+      Celsius: "C",
+      Fahrenheit: "F",
+      Kelvin: "K"
+    },
+
+    currency: {
+      USD: "USD",
+      EUR: "EUR",
+      GBP: "GBP",
+      CAD: "CAD",
+      AUD: "AUD",
+      JPY: "JPY"
+    }
+};
+// Convert length, mass, and volume
+function convertMeasurement(value, from, to, units) {
+  // Convert the input into the base unit
+  const baseValue = value * units[from];
+
+  // Convert the base unit into the destination unit
+  return baseValue / units[to];
+}
+function convertTemperature(value, from, to) {
+  let celsius;
+
+  // Convert the input to Celsius first
+  if (from === 'C') {
+    celsius = value;
+  } else if (from === 'F') {
+    celsius = (value - 32) * 5 / 9;
+  } else if (from === 'K') {
+    celsius = value - 273.15;
+  }
+
+  // Convert Celsius to the selected destination
+  if (to === 'C') {
+    return celsius;
+  } else if (to === 'F') {
+    return (celsius * 9 / 5) + 32;
+  } else if (to === 'K') {
+    return celsius + 273.15;
+  }
+}
+// Calculate and display the conversion result
+async function updateConversionResult() {
+  const category = categorySelect.value;
+  const value = Number(exp.value);
+
+  // Make sure a category and valid number are selected
+  if (!category) {
+    out.textContent = '0';
+    msg.textContent = '';
+    return;
+  }
+
+  if (exp.value.trim() === '' || !Number.isFinite(value)) {
+    out.textContent = '';
+    msg.textContent = 'error';
+    return;
+  }
+
+  // Handle temperature separately
+if (category === 'temperature') {
+  const result = convertTemperature(
+    value,
+    conversionUnits.temperature[fromUnit.value],
+    conversionUnits.temperature[toUnit.value]
+  );
+
+  out.textContent = Number(result.toFixed(8));
+  msg.textContent = '';
+  return;
+}
+
+// Handle currency conversion
+if (category === 'currency') {
+  const from = fromUnit.value;
+  const to = toUnit.value;
+
+  // If both currencies are the same, no conversion is needed
+  if (from === to) {
+    out.textContent = Number(value.toFixed(2));
+    msg.textContent = '';
+    return;
+  }
+
+try {
+  // Get the latest exchange rate
+  const response = await fetch(
+    `https://api.frankfurter.dev/v2/rate/${from}/${to}`
+  );
+
+  if (!response.ok) {
+    throw new Error('Exchange rate unavailable');
+  }
+
+  const data = await response.json();
+
+  // Calculate the converted amount
+  const result = value * data.rate;
+
+  out.textContent = Number(result.toFixed(2));
+  msg.textContent = 
+  `rate: 1 ${from} = ${data.rate} ${to}
+  rate date: ${data.date}
+  source: Frankfurter API`;
+
+  } catch (error) {
+    out.textContent = '';
+    msg.textContent = 'Unable to retrieve exchange rate.';
+  }
+
+  return;
+}
+
+  const units = conversionUnits[category];
+
+  const from = fromUnit.value;
+  const to = toUnit.value;
+
+  const result = convertMeasurement(value, from, to, units);
+
+  out.textContent = Number(result.toFixed(8));
+  msg.textContent = '';
+}
+
+// Update result whenever the user changes something
+fromUnit.addEventListener('change', updateConversionResult);
+toUnit.addEventListener('change', updateConversionResult);
+
+// Update available units when category changes
+categorySelect.addEventListener('change', () => {
+  const category = categorySelect.value;
+
+  fromUnit.innerHTML = '';
+  toUnit.innerHTML = '';
+
+  if (!category) {
+    conversionControls.hidden = true;
+    return;
+  }
+
+  conversionControls.hidden = false;
+
+  const units = conversionUnits[category];
+
+  for (const unit in units) {
+    const option1 = document.createElement('option');
+    option1.value = unit;
+    option1.textContent = unit;
+
+    const option2 = document.createElement('option');
+    option2.value = unit;
+    option2.textContent = unit;
+
+    fromUnit.appendChild(option1);
+    toUnit.appendChild(option2);
+  }
+
+  if (toUnit.options.length > 1) {
+    toUnit.selectedIndex = 1;
+  }
+});
+
   const exp = $('expr'), out = $('out'), msg = $('msg'), angleBtn = $('angle');
   let deg = false, fresh = false, last = '';
   if (matchMedia('(pointer:coarse)').matches) exp.inputMode = 'none';
@@ -395,13 +606,40 @@
   document.querySelector('main').addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });
   document.querySelector('main').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.k) insert(b.dataset.k);
-    else if (b.dataset.a === 'clear') { fresh = false; exp.value = ''; preview(); }
+    if (b.dataset.k) {
+      if (!converterPanel.hidden) {
+        exp.value += b.dataset.k;
+        updateConversionResult();
+      } else {
+      insert(b.dataset.k);
+      }
+    }
+    else if (b.dataset.a === 'converter') {
+      openConverter();
+    }
+    else if (b.dataset.a === 'clear') {
+      if (!converterPanel.hidden) {
+        exp.value = '';
+        out.textContent = '0';
+        msg.textContent = '';
+        categorySelect.value = '';
+        conversionControls.hidden = true;
+        closeUnitConverter();
+      } else {
+        fresh = false; exp.value = ''; preview();
+      }
+    }
     else if (b.dataset.a === 'back') back();
     else if (b.dataset.a === 'angle') setAngle();
     else if (b.dataset.a === 'eq') commit();
   });
-  exp.addEventListener('input', () => { fresh = false; preview(); });
+  exp.addEventListener('input', () => { 
+    fresh = false; 
+    if (!converterPanel.hidden) {
+      updateConversionResult();
+    } else {
+    preview();
+  }});
   exp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } });
 
   /* background: particles.js */
@@ -415,4 +653,113 @@
   matchMedia('(prefers-color-scheme:dark)').addEventListener('change', bg);
   bg();
   if (!matchMedia('(pointer:coarse)').matches) exp.focus();
+
+  // Allow the function menu to insert expressions
+  window.insertCalculatorFunction = function(symbol) {
+    if (!converterPanel.hidden) {
+      closeUnitConverter();
+    }
+
+    insert(symbol);
+  };
+
 })();
+
+// Element Variables
+const menuToggle = document.getElementById("FuncToggle");
+const sideMenu = document.getElementById("sideMenu");
+const categoryFilter = document.getElementById("categoryFilter");
+const functionSearch = document.getElementById("functionSearch");
+const functionList = document.getElementById("functionList");
+
+// Menu Toggle Logic
+menuToggle.addEventListener("click", () => {
+  sideMenu.classList.toggle("open");
+  menuToggle.setAttribute(
+    "aria-expanded",
+    sideMenu.classList.contains("open")
+  );
+});
+
+// Generate category dropdown automatically
+function loadCategories() {
+  const categories = new Set();
+
+  calculatorFunctions.forEach(func => {
+    func.categories.forEach(category => {
+      categories.add(category);
+    });
+  });
+
+  categoryFilter.replaceChildren();
+
+  const allOption = document.createElement("option");
+  allOption.value = "all";
+  allOption.textContent = "All Categories";
+  categoryFilter.appendChild(allOption);
+
+  [...categories].sort().forEach(category => {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = category;
+    categoryFilter.appendChild(option);
+  });
+}
+
+// Display functions matching category and search
+function displayFunctions() {
+  const search = functionSearch.value.toLowerCase().trim();
+  const category = categoryFilter.value;
+
+  const filtered = calculatorFunctions.filter(func => {
+    const matchesCategory =
+      category === "all" ||
+      func.categories.includes(category);
+
+    const matchesSearch =
+      func.name.toLowerCase().includes(search) ||
+      func.symbol.toLowerCase().includes(search) ||
+      func.categories.some(tag =>
+        tag.toLowerCase().includes(search)
+      );
+
+    return matchesCategory && matchesSearch;
+  });
+
+  functionList.replaceChildren();
+
+  if (filtered.length === 0) {
+    const message = document.createElement("p");
+    message.textContent = "No functions found.";
+    functionList.appendChild(message);
+    return;
+  }
+
+  filtered.forEach(func => {
+    const button = document.createElement("button");
+    button.className = "function-item";
+    button.type = "button";
+
+    const name = document.createElement("span");
+    name.textContent = func.name;
+
+    const symbol = document.createElement("small");
+    symbol.textContent = func.symbol;
+
+    button.append(name, symbol);
+
+    button.addEventListener("click", () => {
+      window.insertCalculatorFunction(func.symbol);
+    });
+
+    functionList.appendChild(button);
+  });
+}
+
+// Search and filter events
+categoryFilter.addEventListener("change", displayFunctions);
+functionSearch.addEventListener("input", displayFunctions);
+
+// Initialize
+loadCategories();
+displayFunctions();
