@@ -48,6 +48,9 @@
         <button data-k=")">)</button>
         <button data-k="abs(">abs</button>
         <button data-k="e">e</button>
+
+        <!-- Requirement 03: Ans button -->
+        <button data-k="Ans" class="op">Ans</button>
       </div>
 
       <div class="keys">
@@ -79,6 +82,28 @@
         <button data-a="eq" class="eq">=</button>
       </div>
 
+      <!-- Requirement 03: Saved calculation history -->
+      <details id="historyPanel" class="history-panel">
+      <summary>Calculation history</summary>
+
+      <div class="history-actions">
+        <button id="clearHistory" type="button">
+          Clear History
+        </button>
+      </div>
+
+      <p id="historyEmpty">
+        No calculations yet.
+      </p>
+
+      <ol id="historyList"></ol>
+      </details>
+
+      <details id="steps" hidden>
+        <summary>Show steps</summary>
+        <ol id="stepList"></ol>
+      </details>
+      
       <details id="steps" hidden>
         <summary>Show steps</summary>
         <ol id="stepList"></ol>

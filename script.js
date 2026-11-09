@@ -22,7 +22,7 @@
     return t;
   }
 
-  function parse(src) {
+  function parse(src, ans) {
     const T = tokenize(src); let i = 0;
     const peek = () => T[i], next = () => T[i++];
     const isOp = (x, ...v) => x.k === 'op' && v.includes(x.v);
@@ -54,6 +54,18 @@
       const x = next();
       if (x.k === 'num') return { t: 'num', v: x.v };
       if (x.k === 'id') {
+        // Requirement 03: Allow the user to type Ans
+        if ( x.v === 'ans' )
+          {
+            // Make sure a previous answer exists
+            if ( ans === null ) 
+              {
+                throw new PErr( x.pos, x.len, 'No previous answer is available' );
+              }
+
+            // Use the previous answer as a number
+            return { t: 'num', v: ans };
+          }
         if (x.v in CONSTS) return { t: 'num', v: CONSTS[x.v], s: x.v === 'e' ? 'e' : 'π' };
         if (x.v in FUNCS) {
           if (!isOp(peek(), '(')) throw new PErr(x.pos, x.len, `"${x.text}" needs parentheses, for example ${x.text}(1)`);
@@ -108,9 +120,10 @@
       }
     }
   }
-  function run(src, deg) {
+  function run(src, deg, ans) {
     try {
-      const v = evaluate(parse(src), deg);
+      // Requirement 03: Parse the expression, including the previous answer
+      const v = evaluate( parse( src, ans ), deg );
       if (!Number.isFinite(v)) throw new PErr(0, src.length || 1, 'The result is too large to show');
       return { ok: true, value: Number(v.toPrecision(12)) };
     }
@@ -131,8 +144,8 @@
     }
     return q < p ? `(${s})` : s;
   }
-  function solve(src, deg) {
-    const ast = parse(src), steps = [];
+  function solve(src, deg, ans) {
+    const ast = parse(src, ans), steps = [];
     (function fold(n) {
       if (n.t === 'bin') { fold(n.l); fold(n.r); }
       else if (n.t === 'call') fold(n.a);
@@ -157,7 +170,7 @@
   function hideSteps() { stepsBox.hidden = true; stepsBox.open = false; stepList.replaceChildren(); }
   function showSteps(src) {
     hideSteps(); let st = [];
-    try { st = solve(src, deg); } catch (e) { }
+    try { st = solve(src, deg, previousAnswer); } catch (e) { }
     if (!st.length) return;
     st.forEach((x, i) => {
       const li = document.createElement('li'), a = document.createElement('span');
@@ -171,22 +184,172 @@
   /* ---------- interface ---------- */
   const exp = $('expr'), out = $('out'), msg = $('msg'), angleBtn = $('angle');
   let deg = false, fresh = false, last = '';
+
+  /* ---------- Requirement 03: Calculation History ---------- */
+
+  // This is the name used to save our history in the browser.
+  const STORAGE_KEY = 'calculator-history-v1';
+
+  // This array will hold all completed calculations.
+  let history = [];
+
+  // This variable stores the last successful answer.
+  let previousAnswer = null;
+
+  // Load saved history when the calculator opens.
+  function loadHistory() 
+  {
+    try 
+    {
+      // Get the saved history from localStorage.
+      const saved = localStorage.getItem( STORAGE_KEY );
+
+      // If saved history exists, convert it back into an array.
+      if ( saved ) 
+        {
+        const parsed = JSON.parse( saved );
+
+        if ( Array.isArray( parsed ) )
+          {
+            history = parsed.filter( item => item && typeof item.expression === 'string' && 
+            typeof item.result === 'number' && Number.isFinite( item.result ) ).slice( -100 );
+          }
+        }
+
+        // Restore the last answer from the most recent calculation.
+        if ( history.length > 0 )
+        {
+          previousAnswer = history[history.length - 1].result;
+        }
+      }
+    catch (e) 
+    {
+      // If loading fails, start with an empty history.
+      history = [];
+      previousAnswer = null;
+    }
+  }
+
+  // Save the history to the browser.
+  function saveHistory() 
+  {
+    try
+    {
+      // Convert the history array into text and save it.
+      localStorage.setItem( STORAGE_KEY, JSON.stringify( history ) );
+    }
+    catch (e) 
+    {
+      // Calculator still works if browser storage is unavailable.
+    }
+  }
+
+  // Add a completed calculation to history.
+  function addHistory( expression, result )
+  {
+    // Store the original expression and numeric result.
+    history.push( { expression: expression, result: result } );
+
+    // Keep only the 100 most recent calculations.
+    if ( history.length > 100 )
+    {
+      history.shift();
+    }
+
+    // Save and update the history display.
+    saveHistory();
+    renderHistory();
+  }
+
+  // Display the saved calculations on the page.
+  function renderHistory() 
+  {
+    // Find the history list in HTML.
+    const list = $( 'historyList' );
+
+    // Remove the old displayed entries.
+    list.replaceChildren();
+
+    // Show the empty message if there are no calculations.
+    $( 'historyEmpty' ).hidden = history.length > 0;
+
+   // Display newest calculations first.
+   history.slice().reverse().forEach( item => 
+    {
+      // Create a new list item.
+      const li = document.createElement( 'li' );
+
+      // Create a button for recalling the calculation.
+      const button = document.createElement( 'button' );
+
+      button.type = 'button';
+      button.className = 'history-entry';
+
+      // Show the expression and its result.
+     button.textContent = item.expression + ' = ' + item.result;
+
+      button.title = 'Recall this expression';
+
+      // When clicked, put the old expression into the input.
+      button.addEventListener( 'click', () => 
+      {
+        exp.value = item.expression;
+        fresh = false;
+        preview();
+        exp.focus();
+      } );
+
+      // Add the button to the list.
+      li.append(button);
+      list.append(li);
+    } );
+  }
+
+  // Clear all saved calculations.
+  function clearHistory() 
+  {
+    // Empty the history array.
+    history = [];
+
+    // Reset the previous answer.
+    previousAnswer = null;
+    last = '';
+
+    // Save the empty history.
+    saveHistory();
+
+    // Update the screen.
+    renderHistory();
+    preview();
+  }
+
+  // Connect the Clear History button to our function.
+  $( 'clearHistory' ).addEventListener( 'click', clearHistory );
+
+  // Load the saved history when the calculator starts.
+  loadHistory();
+
+  // Display the loaded history.
+  renderHistory();
+  
   if (matchMedia('(pointer:coarse)').matches) exp.inputMode = 'none';
 
   function preview() {
     msg.className = ''; msg.replaceChildren(); hideSteps();
     if (!exp.value.trim()) { out.textContent = '0'; return; }
-    const r = run(exp.value, deg);
+    const r = run(exp.value, deg, previousAnswer);
     out.textContent = r.ok ? String(r.value) : '';
   }
   function commit() {
     const s = exp.value; if (!s.trim()) return;
     hideSteps();
-    const r = run(s, deg);
+    const r = run(s, deg, previousAnswer);
     msg.replaceChildren();
     if (r.ok) {
       out.textContent = String(r.value); msg.textContent = s + ' ='; msg.className = '';
       last = String(r.value).replace(/^(-?[\d.]+)e([+-]\d+)$/, '($1×10^$2)'); fresh = true; showSteps(s);
+      addHistory(s, r.value);   // Requirement 03: Save the successful calculation
+      previousAnswer = r.value; // Requirement 03: Update the previous answer
     } else {
       const e = r.err, pre = document.createElement('pre'), u = document.createElement('u');
       msg.className = 'err'; msg.append(`${e.message} (column ${e.pos + 1})`);
