@@ -58,6 +58,30 @@ main {
   border-radius: 10px;
   padding: 16px;
 }
+.mode-switcher {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.mode-label {
+  color: var(--mute);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.mode-switcher select {
+  min-height: 34px;
+  padding: 4px 28px 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--key);
+  color: var(--mute);
+  font-size: 12px;
+  font-weight: 600;
+}
 #expr {
   width: 100%;
   border: 0;
@@ -105,6 +129,9 @@ main {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
+}
+.keys[hidden] {
+  display: none;
 }
 .keys + .keys {
   margin-top: 8px;

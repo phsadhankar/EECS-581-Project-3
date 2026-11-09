@@ -21,6 +21,16 @@
   <body>
     <div id="bg" aria-hidden="true"></div>
     <main>
+      <label class="mode-switcher" for="modeSelect">
+        <span class="mode-label">Mode</span>
+        <select id="modeSelect" aria-label="Calculation mode">
+          <option value="basic">Basic</option>
+          <option value="scientific">Scientific</option>
+          <option value="financial">Financial</option>
+          <option value="conversion">Conversion</option>
+        </select>
+      </label>
+
       <input
         id="expr"
         type="text"

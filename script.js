@@ -183,7 +183,24 @@
 
   /* ---------- interface ---------- */
   const exp = $('expr'), out = $('out'), msg = $('msg'), angleBtn = $('angle');
+  const modeSelect = $('modeSelect');
+  const sciKeys = document.querySelector('.keys.sci');
   let deg = false, fresh = false, last = '';
+  let mode = 'basic';
+
+  const modeNames = {
+    basic: 'Basic calculation mode',
+    scientific: 'Scientific calculation mode',
+    financial: 'Financial calculation mode',
+    conversion: 'Conversion calculation mode'
+  };
+
+  function setMode(nextMode) {
+    if (!modeNames[nextMode]) return;
+    mode = nextMode;
+    modeSelect.value = mode;
+    sciKeys.hidden = mode === 'basic';
+  }
 
   /* ---------- Requirement 03: Calculation History ---------- */
 
@@ -382,6 +399,8 @@
   });
   exp.addEventListener('input', () => { fresh = false; preview(); });
   exp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } });
+  modeSelect.addEventListener('change', () => setMode(modeSelect.value));
+  setMode(mode);
 
   /* background: particles.js */
   function bg() {
