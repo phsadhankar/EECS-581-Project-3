@@ -1,502 +1,370 @@
 :root {
-  --bg: #eef1ed;
-  --panel: #fbfcfa;
-  --key: #e4eae6;
-  --ink: #17231f;
-  --mute: #5d6b65;
-  --line: #cdd6d0;
-  --accent: #0b6b57;
-  --on-accent: #fff;
-  --soft: #d9eee7;
-  --err: #b3261e;
-  --mono: ui-monospace, Menlo, Consolas, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #101815;
-    --panel: #17221e;
-    --key: #223029;
-    --ink: #e6efe9;
-    --mute: #98a8a0;
-    --line: #2c3d36;
-    --accent: #4fd1ae;
-    --on-accent: #101815;
-    --soft: #123a30;
-    --err: #ff8a80;
+    --bg: #eef1ed;
+    --panel: #fbfcfa;
+    --key: #e4eae6;
+    --ink: #17231f;
+    --mute: #5d6b65;
+    --line: #cdd6d0;
+    --accent: #0b6b57;
+    --on-accent: #fff;
+    --soft: #d9eee7;
+    --err: #b3261e;
+    --mono: ui-monospace, Menlo, Consolas, monospace;
   }
-}
-* {
-  box-sizing: border-box;
-}
-html {
-  scroll-padding-top: env(safe-area-inset-top, 0px);
-}
-body {
-  margin: 0;
-  min-height: 100dvh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: calc(16px + env(safe-area-inset-top, 0px)) 16px
-    calc(16px + env(safe-area-inset-bottom, 0px));
-  background: var(--bg);
-  color: var(--ink);
-  font:
-    16px/1.4 system-ui,
-    sans-serif;
-}
-#bg {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-}
-main {
-  width: 100%;
-  max-width: 400px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 16px;
-}
-.mode-switcher {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  margin-bottom: 8px;
-}
-.mode-label {
-  color: var(--mute);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.mode-switcher select {
-  min-height: 34px;
-  padding: 4px 28px 4px 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--key);
-  color: var(--mute);
-  font-size: 12px;
-  font-weight: 600;
-}
-#expr {
-  width: 100%;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: none;
-  color: var(--ink);
-  font: 600 24px var(--mono);
-  text-align: right;
-  padding: 8px 4px;
-}
-#expr:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-#out {
-  font: 600 40px/1.2 var(--mono);
-  text-align: right;
-  min-height: 48px;
-  overflow-wrap: anywhere;
-  padding: 4px;
-}
-#msg {
-  min-height: 44px;
-  padding: 0 4px 8px;
-  text-align: right;
-  font-size: 14px;
-  color: var(--mute);
-}
-#msg.err {
-  color: var(--err);
-  font-weight: 600;
-}
-#msg pre {
-  margin: 2px 0 0;
-  font: 14px var(--mono);
-  white-space: pre-wrap;
-  color: var(--ink);
-  font-weight: 400;
-}
-#msg u {
-  text-decoration: underline wavy var(--err);
-  text-underline-offset: 4px;
-}
-.keys {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-.keys[hidden] {
-  display: none;
-}
-.keys + .keys {
-  margin-top: 8px;
-}
-button {
-  min-height: 48px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--key);
-  color: var(--ink);
-  font: 600 18px var(--mono);
-  cursor: pointer;
-}
-button:active {
-  filter: brightness(0.92);
-}
-:focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
-}
-.sci button {
-  min-height: 40px;
-  font-size: 15px;
-  color: var(--mute);
-}
-.op {
-  background: var(--soft);
-  color: var(--accent);
-}
-.eq {
-  background: var(--accent);
-  color: var(--on-accent);
-}
-.wide {
-  grid-column: span 2;
-}
-noscript {
-  position: fixed;
-  top: 8px;
-  left: 8px;
-}
-#steps {
-  margin-top: 12px;
-  border-top: 1px solid var(--line);
-  padding-top: 8px;
-  font-size: 14px;
-}
-#steps summary {
-  cursor: pointer;
-  color: var(--accent);
-  font-weight: 600;
-  min-height: 32px;
-}
-#stepList {
-  margin: 8px 0 0;
-  padding-left: 22px;
-  font-family: var(--mono);
-}
-#stepList li {
-  margin-bottom: 8px;
-  overflow-wrap: anywhere;
-}
-#stepList small {
-  display: block;
-  color: var(--mute);
-  font-size: 13px;
-}
-
-/* ---------- Requirement 03: Calculation History ---------- */
-
-/* Container for the history section */
-.history-panel
-{
-  margin-top: 12px;
-  border-top: 1px solid var( --line );
-  padding-top: 8px;
-  font-size: 14px;
-}
-
-/* Clickable history heading */
-.history-panel summary
-{
-  cursor: pointer;
-  color: var( --accent );
-  font-weight: 600;
-  min-height: 32px;
-}
-
-/* Area containing the clear history button */
-.history-actions
-{
-  display: flex;
-  justify-content: flex-end;
-  margin: 8px 0;
-}
-
-/* Clear history button */
-#clearHistory
-{
-  min-height: 32px;
-  padding: 6px 12px;
-  font-size: 13px;
-  background: var( --soft );
-  color: var( --accent );
-}
-
-/* List of previous calculations */
-#historyList
-{
-  margin: 8px 0;
-  padding-left: 22px;
-}
-
-/* Space between history items */
-#historyList li
-{
-  margin-bottom: 6px;
-}
-
-/* Buttons containing previous calculations */
-.history-entry
-{
-  width: 100%;
-  min-height: 36px;
-  padding: 8px;
-  text-align: left;
-  font-size: 14px;
-  font-family: var( --mono );
-  background: var( --key );
-  color: var( --ink );
-  overflow-wrap: anywhere;
-}
-
-/* Highlight a calculation when hovering */
-.history-entry:hover
-{
-  background: var( --soft );
-}
-
-/* Message shown when history is empty */
-#historyEmpty
-{
-  color: var( --mute );
-  text-align: center;
-  font-size: 14px;
-  padding: 12px;
-}
-
-/* Hide the empty message when history exists */
-#historyEmpty[hidden]
-{
-  display: none;
-}
-#converterPanel {
-  flex: 0 0 auto;
-  margin: 0;
-  padding: 6px 4px;
-  display: block;
-}
-#converterPanel[hidden] {
-  display: none;
-}
-#converterPanel label {
-  display: block;
-  margin: 4px 0;
-  font-size: 12px;
-  color: var(--mute);
-}
-#converterPanel select {
-  width: 100%;
-  padding: 6px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--key);
-  color: var(--ink);
-  font-size: 13px;
-}
-#conversionControls {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: 10px;
-  row-gap: 4px;
-}
-
-#conversionControls label {
-  margin-bottom: 2px;
-}
-
-#conversionControls select {
-  min-width: 0;
-}
-#conversionCategory {
-  margin-bottom: 10px;
-}
-
-/* Functions Menu */
-
-/* Menu button next to Unit */
-.sci-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-}
-
-.sci-actions button {
-  min-width: 0;
-}
-
-/* Left sidebar */
-.side-menu {
-  position: fixed;
-  top: 50%;
-  right: calc(50% + 216px);
-
-  width: 320px;
-  max-width: 85vw;
-  max-height: 90dvh;
-
-  background: var(--panel);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 16px;
-
-  opacity: 0;
-  visibility: hidden;
-  transform: translate(15px, -50%);
-
-  transition:
-    opacity 0.25s ease,
-    transform 0.25s ease,
-    visibility 0.25s ease;
-
-  z-index: 1000;
-  overflow-y: auto;
-}
-
-.side-menu.open {
-  opacity: 1;
-  visibility: visible;
-  transform: translate(0, -50%);
-}
-
-/* Header */
-.side-menu-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 12px;
-}
-
-.side-menu-header h2 {
-  margin: 0;
-  font-size: 18px;
-}
-
-.side-menu-header button {
-  width: 36px;
-  min-height: 36px;
-  background: var(--key);
-  color: var(--ink);
-  font-size: 20px;
-}
-
-/* Content */
-.side-menu-content {
-  margin-top: 16px;
-}
-
-/* Mobile */
-@media (max-width: 800px) {
-  .side-menu {
-    right: auto;
-    left: 16px;
-    width: min(320px, calc(100vw - 32px));
-    transform: translate(-30px, -50%);
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101815;
+      --panel: #17221e;
+      --key: #223029;
+      --ink: #e6efe9;
+      --mute: #98a8a0;
+      --line: #2c3d36;
+      --accent: #4fd1ae;
+      --on-accent: #101815;
+      --soft: #123a30;
+      --err: #ff8a80;
+    }
+  }
+  * {
+    box-sizing: border-box;
+  }
+  html {
+    scroll-padding-top: env(safe-area-inset-top, 0px);
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px
+      calc(16px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg);
+    color: var(--ink);
+    font:
+      16px/1.4 system-ui,
+      sans-serif;
+  }
+  #bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+  }
+  main {
+    width: 100%;
+    max-width: 400px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  #expr {
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    background: none;
+    color: var(--ink);
+    font: 600 24px var(--mono);
+    text-align: right;
+    padding: 8px 4px;
+  }
+  #expr:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  #out {
+    font: 600 40px/1.2 var(--mono);
+    text-align: right;
+    min-height: 48px;
+    overflow-wrap: anywhere;
+    padding: 4px;
+  }
+  #msg {
+    min-height: 44px;
+    padding: 0 4px 8px;
+    text-align: right;
+    font-size: 14px;
+    color: var(--mute);
+  }
+  #msg.err {
+    color: var(--err);
+    font-weight: 600;
+  }
+  #msg pre {
+    margin: 2px 0 0;
+    font: 14px var(--mono);
+    white-space: pre-wrap;
+    color: var(--ink);
+    font-weight: 400;
+  }
+  #msg u {
+    text-decoration: underline wavy var(--err);
+    text-underline-offset: 4px;
+  }
+  .keys {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .keys + .keys {
+    margin-top: 8px;
+  }
+  button {
+    min-height: 48px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--key);
+    color: var(--ink);
+    font: 600 18px var(--mono);
+    cursor: pointer;
+  }
+  button:active {
+    filter: brightness(0.92);
+  }
+  :focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .sci button {
+    min-height: 40px;
+    font-size: 15px;
+    color: var(--mute);
+  }
+  .op {
+    background: var(--soft);
+    color: var(--accent);
+  }
+  .eq {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  .wide {
+    grid-column: span 2;
+  }
+  noscript {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+  }
+  #steps {
+    margin-top: 12px;
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+    font-size: 14px;
+  }
+  #steps summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-weight: 600;
+    min-height: 32px;
+  }
+  #stepList {
+    margin: 8px 0 0;
+    padding-left: 22px;
+    font-family: var(--mono);
+  }
+  #stepList li {
+    margin-bottom: 8px;
+    overflow-wrap: anywhere;
+  }
+  #stepList small {
+    display: block;
+    color: var(--mute);
+    font-size: 13px;
+  }
+  
+  /* ---------- Requirement 03: Calculation History ---------- */
+  
+  /* Container for the history section */
+  .history-panel
+  {
+    margin-top: 12px;
+    border-top: 1px solid var( --line );
+    padding-top: 8px;
+    font-size: 14px;
+  }
+  
+  /* Clickable history heading */
+  .history-panel summary
+  {
+    cursor: pointer;
+    color: var( --accent );
+    font-weight: 600;
+    min-height: 32px;
+  }
+  
+  /* Area containing the clear history button */
+  .history-actions
+  {
+    display: flex;
+    justify-content: flex-end;
+    margin: 8px 0;
+  }
+  
+  /* Clear history button */
+  #clearHistory
+  {
+    min-height: 32px;
+    padding: 6px 12px;
+    font-size: 13px;
+    background: var( --soft );
+    color: var( --accent );
+  }
+  
+  /* List of previous calculations */
+  #historyList
+  {
+    margin: 8px 0;
+    padding-left: 22px;
+  }
+  
+  /* Space between history items */
+  #historyList li
+  {
+    margin-bottom: 6px;
+  }
+  
+  /* Buttons containing previous calculations */
+  .history-entry
+  {
+    width: 100%;
+    min-height: 36px;
+    padding: 8px;
+    text-align: left;
+    font-size: 14px;
+    font-family: var( --mono );
+    background: var( --key );
+    color: var( --ink );
+    overflow-wrap: anywhere;
+  }
+  
+  /* Highlight a calculation when hovering */
+  .history-entry:hover
+  {
+    background: var( --soft );
+  }
+  
+  /* Message shown when history is empty */
+  #historyEmpty
+  {
+    color: var( --mute );
+    text-align: center;
+    font-size: 14px;
+    padding: 12px;
+  }
+  
+  /* Hide the empty message when history exists */
+  #historyEmpty[hidden]
+  {
+    display: none;
   }
 
-  .side-menu.open {
-    transform: translate(0, -50%);
+  /* ---------- Requirement 06: 2D graphing ---------- */
+  .graph-panel {
+    margin-top: 14px;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
   }
-}
-
-/*** Function Menu ***/
-
-/* Category dropdown and search bar */
-.menu-controls {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-  margin-bottom: 12px;
-}
-
-#categoryFilter,
-#functionSearch {
-  min-width: 0;
-  height: 40px;
-  padding: 8px;
-
-  background: var(--key);
-  color: var(--ink);
-
-  border: 1px solid var(--line);
-  border-radius: 8px;
-
-  font: 13px system-ui, sans-serif;
-}
-
-#categoryFilter {
-  flex: 1;
-  cursor: pointer;
-}
-
-#functionSearch {
-  flex: 1;
-}
-
-#categoryFilter:focus,
-#functionSearch:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-/* Space for future functions */
-#functionList {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* Function list */
-#functionList {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-/* Function buttons */
-.function-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
-
-  background: var(--key);
-  color: var(--ink);
-
-  border: 1px solid var(--line);
-  border-radius: (8px);
-
-  font-size: 14px;
-  text-align: left;
-}
-
-.function-item:hover {
-  background: var(--soft);
-  color: var(--accent);
-}
-
-.function-item small {
-  margin-left: 8px;
-  color: var(--mute);
-  font: 12px var(--mono);
-}
+  .graph-heading h2 {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.3;
+  }
+  .graph-heading p {
+    margin: 3px 0 10px;
+    color: var(--mute);
+    font-size: 12px;
+  }
+  .graph-heading code {
+    color: var(--ink);
+    font-family: var(--mono);
+  }
+  .graph-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .graph-form label {
+    color: var(--accent);
+    font: 600 15px var(--mono);
+  }
+  #graphExpr {
+    flex: 1;
+    min-width: 0;
+    height: 40px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 6px 9px;
+    background: var(--panel);
+    color: var(--ink);
+    font: 15px var(--mono);
+  }
+  #graphExpr:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .graph-form button {
+    min-height: 40px;
+    padding: 0 13px;
+    font-size: 14px;
+  }
+  .graph-plot {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  .graph-tools {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 8px 0;
+  }
+  .graph-tools button {
+    min-height: 34px;
+    min-width: 36px;
+    padding: 4px 9px;
+    font-size: 14px;
+    background: var(--soft);
+    color: var(--accent);
+  }
+  #graphView {
+    margin-left: auto;
+    color: var(--mute);
+    font: 11px var(--mono);
+    text-align: right;
+  }
+  .graph-canvas-wrap {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+  #graphCanvas {
+    display: block;
+    width: 100%;
+    height: 280px;
+    touch-action: none;
+    cursor: grab;
+  }
+  #graphCanvas:active {
+    cursor: grabbing;
+  }
+  .graph-help,
+  .graph-status {
+    margin: 6px 1px 0;
+    color: var(--mute);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .graph-status {
+    min-height: 16px;
+  }
+  .graph-status.error {
+    color: var(--err);
+    font-weight: 600;
+  }
+  @media (max-width: 360px) {
+    #graphCanvas { height: 240px; }
+    .graph-tools { gap: 5px; }
+    .graph-tools button { padding-inline: 7px; }
+    #graphView { font-size: 10px; }
+  }
