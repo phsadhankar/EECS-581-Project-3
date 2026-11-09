@@ -21,16 +21,6 @@
   <body>
     <div id="bg" aria-hidden="true"></div>
     <main>
-      <label class="mode-switcher" for="modeSelect">
-        <span class="mode-label">Mode</span>
-        <select id="modeSelect" aria-label="Calculation mode">
-          <option value="basic">Basic</option>
-          <option value="scientific">Scientific</option>
-          <option value="financial">Financial</option>
-          <option value="conversion">Conversion</option>
-        </select>
-      </label>
-
       <input
         id="expr"
         type="text"
@@ -44,28 +34,6 @@
 
       <div id="out" aria-live="polite">0</div>
       <div id="msg" aria-live="polite"></div>
-
-      <div id="converterPanel" hidden="">
-
-        <label for="conversionCategory">Conversion Type:</label>
-        <select id="conversionCategory">
-          <option value="">Select a category</option>
-          <option value="length">Length</option>
-          <option value="mass">Mass / Weight</option>
-          <option value="volume">Volume</option>
-          <option value="temperature">Temperature</option>
-          <option value="currency">Currency</option>
-        </select>
-
-        <div id="conversionControls" hidden>
-
-          <label for="fromUnit">From:</label>
-          <select id="fromUnit"></select>
-
-          <label for="toUnit">To:</label>
-          <select id="toUnit"></select>
-        </div>
-      </div>
 
       <div class="keys sci">
         <button data-k="sin(">sin</button>
@@ -83,9 +51,6 @@
 
         <!-- Requirement 03: Ans button -->
         <button data-k="Ans" class="op">Ans</button>
-        <button data-a="converter" class="op">unit</button>
-        <!-- Func Button -->
-        <button id="FuncToggle" class="op">func</button>
       </div>
 
       <div class="keys">
@@ -117,6 +82,42 @@
         <button data-a="eq" class="eq">=</button>
       </div>
 
+      <section id="graphPanel" class="graph-panel" aria-labelledby="graphTitle">
+        <div class="graph-heading">
+          <div>
+            <h2 id="graphTitle">2D graph</h2>
+            <p>Plot <code>y = f(x)</code>. Use x, constants, and calculator functions.</p>
+          </div>
+        </div>
+        <form id="graphForm" class="graph-form">
+          <label for="graphExpr">y =</label>
+          <input
+            id="graphExpr"
+            type="text"
+            value="x^2"
+            maxlength="120"
+            spellcheck="false"
+            autocomplete="off"
+            autocapitalize="off"
+            aria-label="Function of x to graph"
+          />
+          <button type="submit" class="graph-plot">Plot</button>
+        </form>
+        <div class="graph-tools" aria-label="Graph controls">
+          <button id="graphZoomOut" type="button" aria-label="Zoom out">−</button>
+          <button id="graphZoomIn" type="button" aria-label="Zoom in">+</button>
+          <button id="graphReset" type="button">Reset view</button>
+          <span id="graphView" aria-live="polite"></span>
+        </div>
+        <div class="graph-canvas-wrap">
+          <canvas id="graphCanvas" tabindex="0" role="img" aria-label="Graph of y equals x squared">
+            Your browser does not support the canvas graph.
+          </canvas>
+        </div>
+        <p id="graphHelp" class="graph-help">Drag to pan; use the scroll wheel or zoom buttons to zoom. Arrow keys pan; +, −, and Home control the view.</p>
+        <p id="graphStatus" class="graph-status" aria-live="polite"></p>
+      </section>
+
       <!-- Requirement 03: Saved calculation history -->
       <details id="historyPanel" class="history-panel">
       <summary>Calculation history</summary>
@@ -145,40 +146,9 @@
       </details>
     </main>
 
-    <!-- Functions Side Menu -->
-
-    <aside id="sideMenu" class="side-menu">
-
-      <!-- Title -->
-      <div class="side-menu-header">
-        <h2>Functions</h2>
-      </div>
-
-      <!-- Category Filter -->
-      <div class="side-menu-content">
-        <div class="menu-controls">
-          <select id="categoryFilter" aria-label="Filter by category">
-            <option value="all">All Categories</option>
-          </select>
-        
-        <!-- Search Bar-->
-        <input
-          type="text"
-          id="functionSearch"
-          placeholder="Search..."
-          aria-label="Search functions"
-          autocomplete="off"
-        />
-        </div>
-
-        <!-- List of Functions-->
-        <div id="functionList"></div>
-      </div>
-    </aside>
-
     <noscript>This calculator needs JavaScript.</noscript>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/particles.js/2.0.0/particles.min.js"></script>
-    <script src="./functions.js"></script>
     <script src="./script.js"></script>
+    <script src="./graph.js"></script>
   </body>
 </html>
