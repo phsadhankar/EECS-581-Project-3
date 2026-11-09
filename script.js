@@ -15,6 +15,30 @@
           val /= 10n;
           e++;
         }
+        if (e < 0n) {
+          let sign = val < 0n ? -1n : 1n;
+          let absVal = val < 0n ? -val : val;
+          let absStr = absVal.toString();
+          let decPos = absStr.length + Number(e);
+          let fracPart = decPos > 0 ? absStr.slice(decPos) : absStr;
+
+          if (/9{15,}$/.test(absStr)) {
+            val += sign;
+          } else {
+            let m9 = fracPart.match(/(9{15,})(\d{1,3})$/);
+            let m0 = fracPart.match(/(0{15,})(\d{1,3})$/);
+            if (m9) {
+              val += sign * (10n ** BigInt(m9[2].length) - (absVal % (10n ** BigInt(m9[2].length))));
+            } else if (m0) {
+              val -= sign * (absVal % (10n ** BigInt(m0[2].length)));
+            }
+          }
+          
+          while (val % 10n === 0n && val !== 0n) {
+            val /= 10n;
+            e++;
+          }
+        }
       }
       
       this.m = val;
