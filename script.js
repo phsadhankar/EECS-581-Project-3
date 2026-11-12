@@ -1,16 +1,239 @@
+/*
+ * SEMESTER:        EECS 581 Fall 2026
+ * PROJECT:         Project 3 - Calculator
+ * FILE:            script.js
+ *
+ * DESCRIPTION:     Implements calculator logic, expression evaluation, saved history, and Ans recall.
+ *
+ * INPUT:           Expressions, button actions, and saved browser history.
+ * OUTPUT:          Calculated results, error messages, and recalled calculations.
+ * 
+ * COLLABORATORS:   Ivan Kullaya, Gael Salazar-Morales, Gabriel Haro-Villa, Carter Ruff, Liam Kinghouser
+ * SOURCES:         TBD
+ * 
+ * AUTHOR:          Pruthviraj Sadhankar
+ * CREATION DATE:   11/01/2026
+ */
+
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
   class PErr extends Error { constructor(pos, len, msg) { super(msg); this.pos = pos; this.len = Math.max(1, len); } }
+
+  class Decimal {
+
+    constructor(m, exp = 0n) {
+      let val = BigInt(m);
+      let e = BigInt(exp);
+      if (val === 0n) {
+        e = 0n;
+      } else {
+        while (val % 10n === 0n) {
+          val /= 10n;
+          e++;
+        }
+        if (e < 0n) {
+          let sign = val < 0n ? -1n : 1n;
+          let absVal = val < 0n ? -val : val;
+          let absStr = absVal.toString();
+          let decPos = absStr.length + Number(e);
+          let fracPart = decPos > 0 ? absStr.slice(decPos) : absStr;
+
+          if (/9{15,}$/.test(absStr)) {
+            val += sign;
+          } else {
+            let m9 = fracPart.match(/(9{15,})(\d{1,3})$/);
+            let m0 = fracPart.match(/(0{15,})(\d{1,3})$/);
+            if (m9) {
+              val += sign * (10n ** BigInt(m9[2].length) - (absVal % (10n ** BigInt(m9[2].length))));
+            } else if (m0) {
+              val -= sign * (absVal % (10n ** BigInt(m0[2].length)));
+            }
+          }
+          
+          while (val % 10n === 0n && val !== 0n) {
+            val /= 10n;
+            e++;
+          }
+        }
+      }
+      
+      this.m = val;
+      this.exp = e;
+    }
+
+    static fromString(s) {
+      s = s.trim().replace('−', '-');
+      if (!s) return new Decimal(0n);
+
+      let sign = 1n;
+
+      if (s.startsWith('-')) {
+        sign = -1n;
+        s = s.slice(1);
+      } else if (s.startsWith('+')) {
+        s = s.slice(1);
+      }
+
+      let [main, expPart] = s.split(/[eE]/);
+      let exp = expPart ? BigInt(expPart) : 0n;
+
+      let dot = main.indexOf('.');
+      if (dot !== -1) {
+        exp -= BigInt(main.length - 1 - dot);
+        main = main.slice(0, dot) + main.slice(dot + 1);
+      }
+
+      let m = BigInt(main || '0') * sign;
+      return new Decimal(m, exp);
+    }
+
+    static fromNumber(n) {
+      if (!Number.isFinite(n)) throw new Error('Result is not finite');
+
+      return Decimal.fromString(Number(n.toPrecision(15)).toString());
+    }
+
+    isZero() { return this.m === 0n; }
+
+    isNegative() { return this.m < 0n; }
+
+    neg() { return new Decimal(-this.m, this.exp); }
+
+    abs() { return new Decimal(this.m < 0n ? -this.m : this.m, this.exp); }
+
+    add(other) {
+      if (this.isZero()) return other;
+      if (other.isZero()) return this;
+
+      let diff = this.exp - other.exp;
+
+      if (diff > 0n) {
+        return new Decimal(this.m * (10n ** diff) + other.m, other.exp);
+      } else if (diff < 0n) {
+        return new Decimal(this.m + other.m * (10n ** (-diff)), this.exp);
+      }
+      return new Decimal(this.m + other.m, this.exp);
+    }
+
+    sub(other) {
+      return this.add(other.neg());
+    }
+
+    mul(other) {
+      if (this.isZero() || other.isZero()) return new Decimal(0n);
+      return new Decimal(this.m * other.m, this.exp + other.exp);
+    }
+
+    div(other, precision = 40) {
+      if (other.isZero()) throw new Error('Division by zero');
+      if (this.isZero()) return new Decimal(0n);
+
+      let sign = (this.m < 0n !== other.m < 0n) ? -1n : 1n;
+      let a = this.abs().m;
+      let b = other.abs().m;
+
+      let shift = precision + String(b).length - String(a).length + 1;
+      if (shift < 1) shift = 1;
+
+      let q = (a * (10n ** BigInt(shift))) / b;
+      q = (q + 5n) / 10n;
+
+      let exp = this.exp - other.exp - BigInt(shift - 1);
+      return new Decimal(sign * q, exp);
+    }
+
+    pow(other) {
+      if (other.isZero()) return new Decimal(1n);
+      if (this.isZero()) return new Decimal(0n);
+
+      if (other.exp >= 0n) {
+        let k = other.m * (10n ** other.exp);
+        if (k < 0n) return (new Decimal(1n)).div(this.pow(other.neg()));
+        if (k > 10000n) throw new Error('Exponent too large');
+
+        let base = this;
+        let res = new Decimal(1n);
+        while (k > 0n) {
+          if (k % 2n === 1n) res = res.mul(base);
+          base = base.mul(base);
+          k /= 2n;
+        }
+        return res;
+      }
+
+      if (this.isNegative()) throw new Error('This power is not a real number');
+      const r = Math.pow(this.toNumber(), other.toNumber());
+      if (Number.isNaN(r)) throw new Error('This power is not a real number');
+      return Decimal.fromNumber(r);
+    }
+
+    sqrt(precision = 40) {
+      if (this.isNegative()) throw new Error('sqrt needs a value of 0 or more');
+      if (this.isZero()) return new Decimal(0n);
+
+      let m = this.m;
+      let exp = this.exp;
+      if (exp % 2n !== 0n) {
+        m *= 10n;
+        exp--;
+      }
+
+      let shift = BigInt(precision * 2);
+      let target = m * (10n ** shift);
+      let x0 = 10n ** BigInt(Math.ceil(String(target).length / 2));
+      let x1 = (x0 + target / x0) / 2n;
+      while (x1 < x0) {
+        x0 = x1;
+        x1 = (x0 + target / x0) / 2n;
+      }
+
+      return new Decimal(x0, (exp - shift) / 2n);
+    }
+
+    toNumber() {
+      return Number(this.toString());
+    }
+
+    toString() {
+      if (this.m === 0n) return '0';
+
+      let sign = this.m < 0n ? '-' : '';
+      let s = String(this.m < 0n ? -this.m : this.m);
+      let exp = Number(this.exp);
+      let decPos = s.length + exp;
+
+      if (exp >= 0) {
+        if (exp <= 20) return sign + s + '0'.repeat(exp);
+        let frac = s.slice(1);
+        return `${sign}${s[0]}${frac ? '.' + frac : ''}e+${s.length - 1 + exp}`;
+      }
+
+      if (decPos > 0) {
+        return sign + s.slice(0, decPos) + '.' + s.slice(decPos);
+      } else if (decPos >= -15) {
+        return sign + '0.' + '0'.repeat(-decPos) + s;
+      } else {
+        let frac = s.slice(1);
+        return `${sign}${s[0]}${frac ? '.' + frac : ''}e${decPos - 1}`;
+      }
+    }
+  }
+
   const OPS = { '+': '+', '-': '-', '−': '-', '*': '*', '×': '*', '·': '*', '/': '/', '÷': '/', '^': '^', '(': '(', ')': ')' };
-  const CONSTS = { pi: Math.PI, 'π': Math.PI, e: Math.E };
+  const FUNCS = { sin: 1, cos: 1, tan: 1, asin: 1, acos: 1, atan: 1, sqrt: 1, ln: 1, log: 1, exp: 1, abs: 1 };
+  const CONSTS = {
+    pi: Decimal.fromString('3.14159265358979323846264338327950288419716939937510'),
+    'π': Decimal.fromString('3.14159265358979323846264338327950288419716939937510'),
+    e: Decimal.fromString('2.71828182845904523536028747135266249775724709369995')
+  };
 
   function tokenize(s) {
     const t = []; let i = 0, m;
     while (i < s.length) {
       const c = s[i], rest = s.slice(i);
       if (/\s/.test(c)) { i++; continue; }
-      if ((m = /^(\d+\.?\d*|\.\d+)/.exec(rest))) { t.push({ k: 'num', v: parseFloat(m[1]), text: m[1], pos: i, len: m[1].length }); i += m[1].length; continue; }
+      if ((m = /^(\d+\.?\d*|\.\d+)/.exec(rest))) { t.push({ k: 'num', v: Decimal.fromString(m[1]), text: m[1], pos: i, len: m[1].length }); i += m[1].length; continue; }
       if (c === 'π') { t.push({ k: 'id', v: 'π', text: c, pos: i, len: 1 }); i++; continue; }
       if ((m = /^[A-Za-z_]+/.exec(rest))) { t.push({ k: 'id', v: m[0].toLowerCase(), text: m[0], pos: i, len: m[0].length }); i += m[0].length; continue; }
       if (c === '*' && s[i + 1] === '*') { t.push({ k: 'op', v: '^', text: '**', pos: i, len: 2 }); i += 2; continue; }
@@ -56,7 +279,7 @@
         // Requirement 03: Allow the user to type Ans
         if ( x.v === 'ans' )
           {
-            // Make sure a previous answer exists
+            // Make sure a previous answer exists, if not throw an error
             if ( ans === null ) 
               {
                 throw new PErr( x.pos, x.len, 'No previous answer is available' );
@@ -94,37 +317,38 @@
     const bad = (n, msg) => { throw new PErr(n.pos, n.t === 'call' ? n.f.length : 1, msg); };
     switch (n.t) {
       case 'num': return n.v;
-      case 'neg': return -evaluate(n.x, deg);
+      case 'neg': return evaluate(n.x, deg).neg();
       case 'bin': {
         const a = evaluate(n.l, deg), b = evaluate(n.r, deg);
-        if (n.op === '+') return a + b; if (n.op === '-') return a - b; if (n.op === '*') return a * b;
-        if (n.op === '/') { if (b === 0) bad(n, 'Division by zero'); return a / b; }
-        const r = Math.pow(a, b); if (Number.isNaN(r)) bad(n, 'This power is not a real number'); return r;
+        if (n.op === '+') return a.add(b); if (n.op === '-') return a.sub(b); if (n.op === '*') return a.mul(b);
+        if (n.op === '/') { if (b.isZero()) bad(n, 'Division by zero'); return a.div(b); }
+        try { return a.pow(b); } catch (e) { bad(n, e.message); }
+        break;
       }
       case 'call': {
         const a = evaluate(n.a, deg);
+        if (n.f === 'abs') return a.abs();
+        if (n.f === 'sqrt') { if (a.isNegative()) bad(n, 'sqrt needs a value of 0 or more'); return a.sqrt(); }
+        const v = a.toNumber();
         switch (n.f) {
-          case 'sin': return snap(Math.sin(toR(a)));
-          case 'cos': return snap(Math.cos(toR(a)));
-          case 'tan': if (Math.abs(Math.cos(toR(a))) < 1e-12) bad(n, 'tan is undefined at this angle'); return snap(Math.tan(toR(a)));
-          case 'asin': if (Math.abs(a) > 1) bad(n, 'asin needs a value from -1 to 1'); return fromR(Math.asin(a));
-          case 'acos': if (Math.abs(a) > 1) bad(n, 'acos needs a value from -1 to 1'); return fromR(Math.acos(a));
-          case 'atan': return fromR(Math.atan(a));
-          case 'sqrt': if (a < 0) bad(n, 'sqrt needs a value of 0 or more'); return Math.sqrt(a);
-          case 'ln': if (a <= 0) bad(n, 'ln needs a value above 0'); return Math.log(a);
-          case 'log': if (a <= 0) bad(n, 'log needs a value above 0'); return Math.log10(a);
-          case 'exp': return Math.exp(a);
-          case 'abs': return Math.abs(a);
+          case 'sin': return Decimal.fromNumber(snap(Math.sin(toR(v))));
+          case 'cos': return Decimal.fromNumber(snap(Math.cos(toR(v))));
+          case 'tan': if (Math.abs(Math.cos(toR(v))) < 1e-12) bad(n, 'tan is undefined at this angle'); return Decimal.fromNumber(snap(Math.tan(toR(v))));
+          case 'asin': if (Math.abs(v) > 1) bad(n, 'asin needs a value from -1 to 1'); return Decimal.fromNumber(fromR(Math.asin(v)));
+          case 'acos': if (Math.abs(v) > 1) bad(n, 'acos needs a value from -1 to 1'); return Decimal.fromNumber(fromR(Math.acos(v)));
+          case 'atan': return Decimal.fromNumber(fromR(Math.atan(v)));
+          case 'ln': if (v <= 0) bad(n, 'ln needs a value above 0'); return Decimal.fromNumber(Math.log(v));
+          case 'log': if (v <= 0) bad(n, 'log needs a value above 0'); return Decimal.fromNumber(Math.log10(v));
+          case 'exp': return Decimal.fromNumber(Math.exp(v));
         }
+        break;
       }
     }
   }
   function run(src, deg, ans) {
     try {
-      // Requirement 03: Parse the expression, including the previous answer
-      const v = evaluate( parse( src, ans ), deg );
-      if (!Number.isFinite(v)) throw new PErr(0, src.length || 1, 'The result is too large to show');
-      return { ok: true, value: Number(v.toPrecision(12)) };
+      const v = evaluate(parse(src, ans), deg);
+      return { ok: true, value: v.toString() };
     }
     catch (e) { if (e instanceof PErr) return { ok: false, err: e }; throw e; }
   }
@@ -145,7 +369,7 @@
   const SYM = { '+': '+', '-': '−', '*': '×', '/': '÷', '^': '^' };
   function str(n, p, deg) {
     let s, q;
-    if (n.t === 'num') { s = n.s || String(n.v).replace('-', '−'); q = (n.v < 0 && !n.s) ? 3 : 5; }
+    if (n.t === 'num') { s = n.s || n.v.toString().replace('-', '−'); q = (n.v.isNegative() && !n.s) ? 3 : 5; }
     else if (n.t === 'neg') { s = '−' + str(n.x, 4, deg); q = 3; }
     else if (n.t === 'call') { s = `${n.f === 'sqrt' ? '√' : n.f}(${str(n.a, 0, deg)}${deg && /^(sin|cos|tan)$/.test(n.f) ? '°' : ''})`; q = 5; }
     else {
@@ -160,7 +384,7 @@
     (function fold(n) {
       if (n.t === 'bin') { fold(n.l); fold(n.r); }
       else if (n.t === 'call') fold(n.a);
-      else if (n.t === 'neg') { fold(n.x); if (n.x.t === 'num' && !n.x.s) { n.v = -n.x.v; delete n.x; n.t = 'num'; } }
+      else if (n.t === 'neg') { fold(n.x); if (n.x.t === 'num' && !n.x.s) { n.v = n.x.v.neg(); delete n.x; n.t = 'num'; } }
     })(ast);
     while (ast.t !== 'num') {
       let best = null, rank = 0;
@@ -171,9 +395,9 @@
         if (ok) { const r = n.t !== 'bin' || n.op === '^' ? 3 : n.op === '*' || n.op === '/' ? 2 : 1; if (r > rank) { rank = r; best = n; } }
         if (n.t === 'bin') walk(n.r);
       })(ast);
-      const sub = str(best, 0, deg), val = Number(evaluate(best, deg).toPrecision(10)), isNeg = best.t === 'neg';
+      const sub = str(best, 0, deg), val = evaluate(best, deg), isNeg = best.t === 'neg';
       Object.keys(best).forEach(k => delete best[k]); best.t = 'num'; best.v = val;
-      if (!isNeg) steps.push({ sub, val: String(val).replace('-', '−'), rest: str(ast, 0, deg) });
+      if (!isNeg) steps.push({ sub, val: val.toString().replace('-', '−'), rest: str(ast, 0, deg) });
     }
     return steps;
   }
@@ -412,112 +636,97 @@ categorySelect.addEventListener('change', () => {
     sciKeys.hidden = mode === 'basic';
   }
 
-  /* ---------- Requirement 03: Calculation History ---------- */
+  const STORAGE_KEY = 'calculator-history-v1';  // Requirement 03: Name used to save our history in the browser.
+  let history = [];                 // Requirement 03: The array to hold all completed calculations.
+  let previousAnswer = null;        // Requirement 03: This variable stores the last successful answer.
 
-  // This is the name used to save our history in the browser.
-  const STORAGE_KEY = 'calculator-history-v1';
-
-  // This array will hold all completed calculations.
-  let history = [];
-
-  // This variable stores the last successful answer.
-  let previousAnswer = null;
-
-  // Load saved history when the calculator opens.
+  // Requirement 03: loadHistory() loads saved history when the calculator opens. Firstly getting the
+  // saved history from localStorage. If the saved history exists, it'll be converted back into an
+  // array where it only keeps the valid characters and the most recent 100 calculations. If the length
+  // of the saved history is greater than zero, then it'll restore the last answer from the most recent
+  // calculation. If there's an error, it'll start with an empty history and previous answer.
   function loadHistory() 
   {
     try 
     {
-      // Get the saved history from localStorage.
       const saved = localStorage.getItem( STORAGE_KEY );
 
-      // If saved history exists, convert it back into an array.
       if ( saved ) 
         {
         const parsed = JSON.parse( saved );
 
         if ( Array.isArray( parsed ) )
           {
-            history = parsed.filter( item => item && typeof item.expression === 'string' && 
-            typeof item.result === 'number' && Number.isFinite( item.result ) ).slice( -100 );
+            history = parsed.filter( item => 
+            item && typeof item.expression === 'string' && ( typeof item.result === 'string' ||
+            ( typeof item.result === 'number' && Number.isFinite( item.result ) ) ) );
+
+            history = history.slice( -100 );
           }
         }
 
-        // Restore the last answer from the most recent calculation.
         if ( history.length > 0 )
         {
-          previousAnswer = history[history.length - 1].result;
+          previousAnswer = Decimal.fromString( String( history[ history.length - 1 ].result ) );
         }
       }
     catch (e) 
     {
-      // If loading fails, start with an empty history.
       history = [];
       previousAnswer = null;
     }
   }
 
-  // Save the history to the browser.
+  // Requirement 03: saveHistory() saves the history to the browser. It will convert the history
+  // array into text and save it, even if the browser storage is unavailable.
   function saveHistory() 
   {
     try
     {
-      // Convert the history array into text and save it.
       localStorage.setItem( STORAGE_KEY, JSON.stringify( history ) );
     }
     catch (e) 
-    {
-      // Calculator still works if browser storage is unavailable.
-    }
+    { }
   }
 
-  // Add a completed calculation to history.
+  // Requirement 03: addHistory() adds a completed calculation to history. Firstly it stores the
+  // original expression and numeric result. Then, after it only keeps the most 100 recent calculations
+  // it will save and update the history display.
   function addHistory( expression, result )
   {
-    // Store the original expression and numeric result.
     history.push( { expression: expression, result: result } );
 
-    // Keep only the 100 most recent calculations.
     if ( history.length > 100 )
     {
       history.shift();
     }
 
-    // Save and update the history display.
     saveHistory();
     renderHistory();
   }
 
-  // Display the saved calculations on the page.
+  // Requirement 03: renderHistory() displays the saved calculations on the page. Firstly it finds the
+  // history list in the HTML, removes the old displayed entries, then shows the empty message if
+  // there are no calculations. Next it displays the newest calculation first by creating a new list
+  // item and a new button. Afterwards it'll show the expression and its result, and when the button
+  // is clicked it will put the old expression into the input. Then finally it'll add the button to
+  // the list.
   function renderHistory() 
   {
-    // Find the history list in HTML.
     const list = $( 'historyList' );
-
-    // Remove the old displayed entries.
     list.replaceChildren();
-
-    // Show the empty message if there are no calculations.
     $( 'historyEmpty' ).hidden = history.length > 0;
 
-   // Display newest calculations first.
    history.slice().reverse().forEach( item => 
     {
-      // Create a new list item.
       const li = document.createElement( 'li' );
-
-      // Create a button for recalling the calculation.
       const button = document.createElement( 'button' );
 
       button.type = 'button';
       button.className = 'history-entry';
-
-      // Show the expression and its result.
-     button.textContent = item.expression + ' = ' + item.result;
-
+      button.textContent = item.expression + ' = ' + item.result;
       button.title = 'Recall this expression';
 
-      // When clicked, put the old expression into the input.
       button.addEventListener( 'click', () => 
       {
         exp.value = item.expression;
@@ -526,38 +735,105 @@ categorySelect.addEventListener('change', () => {
         exp.focus();
       } );
 
-      // Add the button to the list.
       li.append(button);
       list.append(li);
     } );
   }
 
-  // Clear all saved calculations.
+  // Requirement 03: clearHistory() clear all saved calculations. Firstly it'll empty the history
+  // array and reset the previous answer. After saving the empty history it'll update the screen.
   function clearHistory() 
   {
-    // Empty the history array.
     history = [];
-
-    // Reset the previous answer.
     previousAnswer = null;
     last = '';
 
-    // Save the empty history.
     saveHistory();
-
-    // Update the screen.
     renderHistory();
     preview();
   }
 
-  // Connect the Clear History button to our function.
+  // Requirement 23: downloadHistort() downloads a file to the user's computer. Firstly a new file,
+  // a temporary link to the file and a temporary download button are all created. Once the button
+  // connects to the link and the downloaded file is given a name, it will add the link to the page
+  // to start downloading. Afterwards the temporary link and temporary file are removed.
+  function downloadHistory( content, filename, fileType )
+  {
+    const file = new Blob( [content], { type: fileType } );
+    const url = URL.createObjectURL( file );
+    const link = document.createElement( 'a' );
+
+    link.href = url;
+    link.download = filename;
+
+    document.body.appendChild(link);
+
+    link.click();
+    link.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // exportTXT() exports the history as a TXT file. If there's no calculations to export, a message
+  // is sent. If there are, the text starts with a title then goes through each calculation to
+  // adds the expressions and its answer. Then it calls downloadHistory() to download the file then
+  // lets the user know.
+  function exportTXT()
+  {
+    if ( history.length === 0 )
+    {
+      $( 'exportMessage' ).textContent = 'No history to export.';
+      return;
+    }
+
+    let text = 'Calculation History\n\n';
+
+    history.forEach( item => { text += item.expression + ' = ' + item.result + '\n'; } );
+    downloadHistory( text, 'calculator-history.txt', 'text/plain;charset=utf-8' );
+    $( 'exportMessage' ).textContent = 'TXT export started.';
+  }
+
+
+  // Requirement 23: csvValue() prepares a value for a CSV file. The value is converted to text, then
+  // replaces quotation marks with double quotation marks and puts the quotation marks around the
+  function csvValue( value )
+  {
+    const text = String( value );
+    const escaped = text.replace( /"/g, '""' );
+
+    return '"' + escaped + '"';
+  }
+
+
+  // Requirement 23: exportCSV() exports the history as a CSV file. If the history is empty, a message
+  // is sent. If there is history a colum heading is created then each calculation will have the 
+  // expression and result added as a row. Afterwards downloadHistory() is called to download the CSV
+  // then the user is let known through a message.
+  function exportCSV()
+  {
+    if ( history.length === 0 )
+    {
+      $( 'exportMessage' ).textContent = 'No history to export.';
+      return;
+    }
+
+    let csv = 'Expression,Result\n';
+
+    history.forEach( item => { csv += csvValue( item.expression ) + ',' + csvValue( item.result )
+    + '\n'; } );
+
+    downloadHistory( csv, 'calculator-history.csv', 'text/csv;charset=utf-8' );
+    $( 'exportMessage' ).textContent = 'CSV export started.';
+  }
+  
+  // Requirement 23: Connects the export button to their respective function
+  $( 'exportTXT' ).addEventListener( 'click', exportTXT );
+  $( 'exportCSV' ).addEventListener( 'click', exportCSV );
+
+  // Requirement 03: Connect the Clear History button to our function.
   $( 'clearHistory' ).addEventListener( 'click', clearHistory );
-
-  // Load the saved history when the calculator starts.
-  loadHistory();
-
-  // Display the loaded history.
-  renderHistory();
+  loadHistory();      // Requirement 03: Load the saved history when the calculator starts.
+  renderHistory();    // Requirement 03: Display the loaded history.
   
   if (matchMedia('(pointer:coarse)').matches) exp.inputMode = 'none';
 
@@ -565,7 +841,7 @@ categorySelect.addEventListener('change', () => {
     msg.className = ''; msg.replaceChildren(); hideSteps();
     if (!exp.value.trim()) { out.textContent = '0'; return; }
     const r = run(exp.value, deg, previousAnswer);
-    out.textContent = r.ok ? String(r.value) : '';
+    out.textContent = r.ok ? r.value.replace('-', '−') : '';
   }
   function commit() {
     const s = exp.value; if (!s.trim()) return;
@@ -573,10 +849,8 @@ categorySelect.addEventListener('change', () => {
     const r = run(s, deg, previousAnswer);
     msg.replaceChildren();
     if (r.ok) {
-      out.textContent = String(r.value); msg.textContent = s + ' ='; msg.className = '';
-      last = String(r.value).replace(/^(-?[\d.]+)e([+-]\d+)$/, '($1×10^$2)'); fresh = true; showSteps(s);
-      addHistory(s, r.value);   // Requirement 03: Save the successful calculation
-      previousAnswer = r.value; // Requirement 03: Update the previous answer
+      out.textContent = r.value.replace('-', '−'); msg.textContent = s + ' ='; msg.className = '';
+      last = r.value.replace(/^(-?[\d.]+)e([+-]?\d+)$/i, '($1×10^$2)'); fresh = true; showSteps(s); addHistory(s, r.value); previousAnswer = Decimal.fromString(r.value);
     } else {
       const e = r.err, pre = document.createElement('pre'), u = document.createElement('u');
       msg.className = 'err'; msg.append(`${e.message} (column ${e.pos + 1})`);
