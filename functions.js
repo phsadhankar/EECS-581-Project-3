@@ -1,4 +1,21 @@
+/*
+ * SEMESTER:        EECS 581 Fall 2026
+ * PROJECT:         Project 3 - Calculator
+ * FILE:            functions.js
+ *
+ * DESCRIPTION:     Defines the available calculator functions and their categories.
+ *
+ * INPUT:           Function definitions used by the calculator.
+ * OUTPUT:          Function registry for searching and evaluating supported functions.
+ * 
+ * COLLABORATORS:   None
+ * SOURCES:         TBD
+ * 
+ * AUTHOR:          Carter Ruff
+ * CREATION DATE:   11/08/2026
+ */
 
+// Function definitions used by the calculator and function search menu.
 const calculatorFunctions = [
   {
     id: "sin",

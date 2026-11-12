@@ -1,0 +1,4 @@
+Calculation History
+
+2+3 = 5
+7×6 = 42
