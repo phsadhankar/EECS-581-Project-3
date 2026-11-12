@@ -1,3 +1,20 @@
+<!--
+  SEMESTER:       EECS 581 Fall 2026
+  PROJECT:        Project 3 - Calculator
+  FILE:           index.html
+
+  DESCRIPTION:    Defines the calculator interface, input controls, history panel, and function menu.
+
+  INPUT:          User expressions, button clicks, and mode selections.
+  OUTPUT:         Displays calculator results, saved history, and interface controls.
+
+  COLLABORATORS:  Ivan Kullaya, Gael Salazar-Morales, Gabriel Haro-Villa, Carter Ruff
+  SOURCES:        TBD
+
+  AUTHOR:         Pruthviraj Sadhankar
+  CREATION DATE:  11/01/2026
+-->
+
 <!doctype html>
 <html lang="en">
   <head>
@@ -80,12 +97,9 @@
         <button data-k=")">)</button>
         <button data-k="abs(">abs</button>
         <button data-k="e">e</button>
-
-        <!-- Requirement 03: Ans button -->
-        <button data-k="Ans" class="op">Ans</button>
+        <button data-k="Ans" class="op">Ans</button>      <!-- Requirement 03: Ans button -->
         <button data-a="converter" class="op">unit</button>
-        <!-- Func Button -->
-        <button id="FuncToggle" class="op">func</button>
+        <button id="FuncToggle" class="op">func</button>  <!-- Func Button -->
       </div>
 
       <div class="keys">
@@ -120,23 +134,36 @@
       <!-- Requirement 03: Saved calculation history -->
       <details id="historyPanel" class="history-panel">
       <summary>Calculation history</summary>
-
+      
+      <!-- Requirement 03: Controls for managing saved calculations. -->
+      <!-- Requirement 23: Export Calculation History -->
       <div class="history-actions">
+        <!-- Requirement 23: Download history as a text file -->
+        <button id="exportTXT" type="button">
+          Export TXT
+        </button>
+
+        <!-- Requirement 23: Download history as a CSV file -->
+        <button id="exportCSV" type="button">
+          Export CSV
+        </button>
+
+        <!-- Requirement 03: Button to clear history -->  
         <button id="clearHistory" type="button">
           Clear History
         </button>
       </div>
 
+      <!-- Requirement 23: Show messages about exporting -->
+      <p id="exportMessage" role="status" aria-live="polite"></p>
+
+      <!-- Requirement 03: Displayed when no calculations have been saved. -->
       <p id="historyEmpty">
         No calculations yet.
       </p>
 
+      <!-- Requirement 03: Adds the saved calculation entries to this list. -->
       <ol id="historyList"></ol>
-      </details>
-
-      <details id="steps" hidden>
-        <summary>Show steps</summary>
-        <ol id="stepList"></ol>
       </details>
       
       <details id="steps" hidden>

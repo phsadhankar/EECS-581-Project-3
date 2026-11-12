@@ -1,3 +1,20 @@
+/*
+ * SEMESTER:        EECS 581 Fall 2026
+ * PROJECT:         Project 3 - Calculator
+ * FILE:            styles.css
+ *
+ * DESCRIPTION:     Styles the calculator interface, including the calculation history panel.
+ *
+ * INPUT:           HTML elements and browser display settings.
+ * OUTPUT:          Visual layout, colors, spacing, and responsive styling.
+ * 
+ * COLLABORATORS:   Ivan Kullaya, Gael Salazar-Morales, Gabriel Haro-Villa, Carter Ruff
+ * SOURCES:         TBD
+ * 
+ * AUTHOR:          Pruthviraj Sadhankar
+ * CREATION DATE:   11/01/2026
+ */
+
 :root {
   --bg: #eef1ed;
   --panel: #fbfcfa;
@@ -205,9 +222,7 @@ noscript {
   font-size: 13px;
 }
 
-/* ---------- Requirement 03: Calculation History ---------- */
-
-/* Container for the history section */
+/* Requirement 03: Container for the history section */
 .history-panel
 {
   margin-top: 12px;
@@ -216,7 +231,7 @@ noscript {
   font-size: 14px;
 }
 
-/* Clickable history heading */
+/* Requirement 03: Clickable history heading */
 .history-panel summary
 {
   cursor: pointer;
@@ -225,16 +240,22 @@ noscript {
   min-height: 32px;
 }
 
-/* Area containing the clear history button */
+/* Requirement 03: Area containing the clear history button */
+/* Requirement 23: History export button */
 .history-actions
 {
   display: flex;
   justify-content: flex-end;
   margin: 8px 0;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-/* Clear history button */
-#clearHistory
+/* Requirement 03: Clear history button */
+/* Requirement 23: Includes export button */
+#clearHistory,
+#exportTXT,
+#exportCSV
 {
   min-height: 32px;
   padding: 6px 12px;
@@ -243,20 +264,28 @@ noscript {
   color: var( --accent );
 }
 
-/* List of previous calculations */
+/* Requirement 23: Export message display */
+#exportMessage
+{
+  font-size: 12px;
+  color: var( --mute );
+  text-align: center;
+}
+
+/* Requirement 03: List of previous calculations */
 #historyList
 {
   margin: 8px 0;
   padding-left: 22px;
 }
 
-/* Space between history items */
+/* Requirement 03: Space between history items */
 #historyList li
 {
   margin-bottom: 6px;
 }
 
-/* Buttons containing previous calculations */
+/* Requirement 03: Buttons containing previous calculations */
 .history-entry
 {
   width: 100%;
@@ -270,13 +299,13 @@ noscript {
   overflow-wrap: anywhere;
 }
 
-/* Highlight a calculation when hovering */
+/* Requirement 03: Highlight a calculation when hovering */
 .history-entry:hover
 {
   background: var( --soft );
 }
 
-/* Message shown when history is empty */
+/* Requirement 03: Message shown when history is empty */
 #historyEmpty
 {
   color: var( --mute );
@@ -285,11 +314,12 @@ noscript {
   padding: 12px;
 }
 
-/* Hide the empty message when history exists */
+/* Requirement 03: Hide the empty message when history exists */
 #historyEmpty[hidden]
 {
   display: none;
 }
+
 #converterPanel {
   flex: 0 0 auto;
   margin: 0;
