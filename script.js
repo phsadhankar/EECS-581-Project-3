@@ -203,8 +203,8 @@
     }
   }
 
-  const OPS = { '+': '+', '-': '-', '−': '-', '*': '*', '×': '*', '·': '*', '/': '/', '÷': '/', '^': '^', '(': '(', ')': ')' };
-  const FUNCS = { sin: 1, cos: 1, tan: 1, asin: 1, acos: 1, atan: 1, sqrt: 1, ln: 1, log: 1, exp: 1, abs: 1 };
+  const OPS = { '+': '+', '-': '-', '−': '-', '*': '*', '×': '*', '·': '*', '/': '/', '÷': '/', '^': '^', '(': '(', ')': ')', ',': ',', '[': '[', ']': ']' };
+  const FUNCS = { sin: 1, cos: 1, tan: 1, asin: 1, acos: 1, atan: 1, sqrt: 1, ln: 1, log: 1, exp: 1, abs: 1, prime: 1, fact: 1, gcd: 2, lcm: 2, pinc: 2, pdec: 2, pdiff: 2, mean: 1, medn: 1, mode: 1, stdev: 1, var: 1, stats: 1 };
   const CONSTS = {
     pi: Decimal.fromString('3.14159265358979323846264338327950288419716939937510'),
     'π': Decimal.fromString('3.14159265358979323846264338327950288419716939937510'),
@@ -231,7 +231,7 @@
     const T = tokenize(src); let i = 0;
     const peek = () => T[i], next = () => T[i++];
     const isOp = (x, ...v) => x.k === 'op' && v.includes(x.v);
-    const startsAtom = x => x.k === 'num' || x.k === 'id' || isOp(x, '(');
+    const startsAtom = x => x.k === 'num' || x.k === 'id' || isOp(x, '(', '[');
     function expr() {
       let l = term();
       while (isOp(peek(), '+', '-')) { const o = next(); l = { t: 'bin', op: o.v, l, r: term(), pos: o.pos }; } return l;
@@ -273,12 +273,62 @@
           }
         if (x.v in CONSTS) return { t: 'num', v: CONSTS[x.v], s: x.v === 'e' ? 'e' : 'π' };
         if (functionRegistry.has(x.v)) {
-          if (!isOp(peek(), '(')) throw new PErr(x.pos, x.len, `"${x.text}" needs parentheses, for example ${x.text}(1)`);
-          const open = next(), a = expr();
-          if (!isOp(peek(), ')')) throw new PErr(peek().pos, peek().len, `Missing ")" for the "(" at column ${open.pos + 1}`);
-          next(); return { t: 'call', f: x.v, a, pos: x.pos };
+          if (!isOp(peek(), '(')) {
+            throw new PErr(x.pos, x.len, `"${x.text}" needs parentheses, for example ${x.text}(1)`);
+          }
+          const open = next();
+          const args = [];
+
+          // Parse comma-separated arguments inside the function call
+          if (!isOp(peek(), ')')) {
+            if (isOp(peek(), ',')) {
+              throw new PErr(peek().pos, peek().len, 'Malformed dataset: missing value before ","');
+            }
+            args.push(expr());
+            while (isOp(peek(), ',')) {
+              const comma = next();
+              if (isOp(peek(), ')') || isOp(peek(), ',')) {
+                throw new PErr(comma.pos, comma.len, 'Malformed dataset: missing value after ","');
+              }
+              args.push(expr());
+            }
+          }
+
+          if (!isOp(peek(), ')')) {
+            throw new PErr(peek().pos, peek().len, `Missing ")" for the "(" at column ${open.pos + 1}`);
+          }
+          next();
+
+          return {
+            t: 'call',
+            f: x.v,
+            a: args[0],
+            args: args,
+            pos: x.pos
+          };
         }
         throw new PErr(x.pos, x.len, `Unknown name "${x.text}"`);
+      }
+      if (isOp(x, '[')) {
+        const items = [];
+        if (!isOp(peek(), ']')) {
+          if (isOp(peek(), ',')) {
+            throw new PErr(peek().pos, peek().len, 'Malformed dataset: missing value before ","');
+          }
+          items.push(expr());
+          while (isOp(peek(), ',')) {
+            const comma = next();
+            if (isOp(peek(), ']') || isOp(peek(), ',')) {
+              throw new PErr(comma.pos, comma.len, 'Malformed dataset: missing value after ","');
+            }
+            items.push(expr());
+          }
+        }
+        if (!isOp(peek(), ']')) {
+          throw new PErr(peek().pos, peek().len, `Missing "]" for the "[" at column ${x.pos + 1}`);
+        }
+        next();
+        return { t: 'list', items, pos: x.pos };
       }
       if (isOp(x, '(')) {
         const a = expr();
@@ -290,7 +340,14 @@
     }
     if (T.length === 1) throw new PErr(0, 1, 'Enter an expression');
     const ast = expr(), x = peek();
-    if (x.k !== 'eof') throw new PErr(x.pos, x.len, isOp(x, ')') ? 'Unmatched ")" with no opening "("' : `Unexpected "${x.text}"`);
+    if (x.k !== 'eof') {
+      const errMsg = isOp(x, ')')
+        ? 'Unmatched ")" with no opening "("'
+        : isOp(x, ']')
+          ? 'Unmatched "]" with no opening "["'
+          : `Unexpected "${x.text}"`;
+      throw new PErr(x.pos, x.len, errMsg);
+    }
     return ast;
   }
 
@@ -301,6 +358,7 @@
     switch (n.t) {
       case 'num': return n.v;
       case 'neg': return evaluate(n.x, deg).neg();
+      case 'list': bad(n, 'Datasets "[...]" can only be used inside statistics functions');
       case 'bin': {
         const a = evaluate(n.l, deg), b = evaluate(n.r, deg);
         if (n.op === '+') return a.add(b); if (n.op === '-') return a.sub(b); if (n.op === '*') return a.mul(b);
@@ -309,6 +367,445 @@
         break;
       }
       case 'call': {
+        // Helper to validate and extract BigInt integers for number theory functions
+        const toInteger = (dec, funcName) => {
+          if (dec.exp < 0n) {
+            bad(n, `${funcName} requires integer inputs`);
+          }
+          return dec.m * (10n ** dec.exp);
+        };
+
+        // Helper to format percentage values (rounding to 2 decimals when needed)
+        const formatPercent = (dec) => {
+          const rawStr = dec.toString();
+          const dot = rawStr.indexOf('.');
+          if (dot === -1) {
+            return rawStr;
+          }
+          const decimals = rawStr.slice(dot + 1);
+          if (decimals.length <= 2) {
+            return rawStr;
+          }
+          const num = dec.toNumber();
+          return (Math.round(num * 100) / 100).toString();
+        };
+
+        // Requirement 13: Prime Check
+        if (n.f === 'prime') {
+          if (n.args.length !== 1) {
+            bad(n, 'prime requires 1 argument, for example prime(17)');
+          }
+
+          const val = toInteger(evaluate(n.args[0], deg), 'prime');
+
+          if (val > 10000000000000n) {
+            bad(n, 'Value is too large for prime check');
+          }
+
+          // 0, 1, and negative numbers are neither prime nor composite
+          if (val < 2n) {
+            const res = new Decimal(-1n);
+            res.display = 'N/A';
+            res.note = `${val} is neither prime nor composite`;
+            return res;
+          }
+
+          let isPrime = true;
+          if (val === 2n || val === 3n) {
+            isPrime = true;
+          } else if (val % 2n === 0n || val % 3n === 0n) {
+            isPrime = false;
+          } else {
+            // Check divisibility using 6k ± 1 optimization
+            for (let d = 5n; d * d <= val; d += 6n) {
+              if (val % d === 0n || val % (d + 2n) === 0n) {
+                isPrime = false;
+                break;
+              }
+            }
+          }
+
+          const res = new Decimal(isPrime ? 1n : 0n);
+          res.display = isPrime ? 'Prime' : 'Composite';
+          res.note = `${val} is ${isPrime ? 'prime' : 'composite'}`;
+          return res;
+        }
+
+        // Requirement 13: Prime Factorization
+        if (n.f === 'fact') {
+          if (n.args.length !== 1) {
+            bad(n, 'fact requires 1 argument, for example fact(60)');
+          }
+
+          const val = toInteger(evaluate(n.args[0], deg), 'fact');
+
+          if (val <= 0n) {
+            bad(n, 'fact requires a positive integer');
+          }
+          if (val > 10000000000000n) {
+            bad(n, 'Value is too large for prime factorization');
+          }
+
+          let remaining = val;
+          const factors = [];
+          let divisor = 2n;
+
+          // Trial division for factor extraction
+          while (divisor * divisor <= remaining) {
+            if (remaining % divisor === 0n) {
+              let count = 0;
+              while (remaining % divisor === 0n) {
+                count++;
+                remaining /= divisor;
+              }
+              factors.push({ prime: divisor, count: count });
+            }
+            divisor = divisor === 2n ? 3n : divisor + 2n;
+          }
+
+          if (remaining > 1n) {
+            factors.push({ prime: remaining, count: 1 });
+          }
+
+          // Format superscripts for exponents
+          const superscripts = {
+            '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+            '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'
+          };
+          const toSuperscript = (num) => {
+            return String(num).split('').map(ch => superscripts[ch] || ch).join('');
+          };
+
+          const factorStr = factors.length === 0 ? '1' : factors.map(f => {
+            return f.prime.toString() + (f.count > 1 ? toSuperscript(f.count) : '');
+          }).join('×');
+
+          const res = new Decimal(val);
+          res.display = factorStr;
+          res.note = `${val} = ${factorStr}`;
+          return res;
+        }
+
+        // Requirement 13: Greatest Common Divisor
+        if (n.f === 'gcd') {
+          if (n.args.length !== 2) {
+            bad(n, 'gcd requires 2 arguments, for example gcd(12, 18)');
+          }
+
+          let a = toInteger(evaluate(n.args[0], deg), 'gcd');
+          let b = toInteger(evaluate(n.args[1], deg), 'gcd');
+
+          a = a < 0n ? -a : a;
+          b = b < 0n ? -b : b;
+
+          while (b !== 0n) {
+            const remainder = a % b;
+            a = b;
+            b = remainder;
+          }
+
+          return new Decimal(a);
+        }
+
+        // Requirement 13: Least Common Multiple
+        if (n.f === 'lcm') {
+          if (n.args.length !== 2) {
+            bad(n, 'lcm requires 2 arguments, for example lcm(12, 18)');
+          }
+
+          let a = toInteger(evaluate(n.args[0], deg), 'lcm');
+          let b = toInteger(evaluate(n.args[1], deg), 'lcm');
+
+          if (a === 0n || b === 0n) {
+            return new Decimal(0n);
+          }
+
+          const absA = a < 0n ? -a : a;
+          const absB = b < 0n ? -b : b;
+
+          let num1 = absA;
+          let num2 = absB;
+          while (num2 !== 0n) {
+            const remainder = num1 % num2;
+            num1 = num2;
+            num2 = remainder;
+          }
+          const gcdVal = num1;
+
+          const lcmVal = (absA * absB) / gcdVal;
+          return new Decimal(lcmVal);
+        }
+
+        // Requirement 18: Percentage Increase
+        if (n.f === 'pinc') {
+          if (n.args.length !== 2) {
+            bad(n, 'pinc requires 2 arguments: pinc(from, to), for example pinc(80, 100)');
+          }
+
+          const fromVal = evaluate(n.args[0], deg);
+          const toVal = evaluate(n.args[1], deg);
+
+          if (fromVal.isZero()) {
+            bad(n, 'Starting value cannot be zero for percent increase');
+          }
+
+          // Formula: ((to - from) / from) * 100
+          const change = toVal.sub(fromVal);
+          const percent = change.div(fromVal).mul(Decimal.fromString('100'));
+
+          const formatted = formatPercent(percent);
+          const res = percent;
+
+          res.display = `${formatted}%`;
+          res.note = `Increase ${fromVal.toString()} → ${toVal.toString()}: ${formatted}%`;
+          return res;
+        }
+
+        // Requirement 18: Percentage Decrease
+        if (n.f === 'pdec') {
+          if (n.args.length !== 2) {
+            bad(n, 'pdec requires 2 arguments: pdec(from, to), for example pdec(100, 80)');
+          }
+
+          const fromVal = evaluate(n.args[0], deg);
+          const toVal = evaluate(n.args[1], deg);
+
+          if (fromVal.isZero()) {
+            bad(n, 'Starting value cannot be zero for percent decrease');
+          }
+
+          // Formula: ((from - to) / from) * 100
+          const change = fromVal.sub(toVal);
+          const percent = change.div(fromVal).mul(Decimal.fromString('100'));
+
+          const formatted = formatPercent(percent);
+          const res = percent;
+
+          res.display = `${formatted}%`;
+          res.note = `Decrease ${fromVal.toString()} → ${toVal.toString()}: ${formatted}%`;
+          return res;
+        }
+
+        // Requirement 18: Percentage Difference (Symmetric convention)
+        if (n.f === 'pdiff') {
+          if (n.args.length !== 2) {
+            bad(n, 'pdiff requires 2 arguments: pdiff(a, b), for example pdiff(80, 100)');
+          }
+
+          const valA = evaluate(n.args[0], deg);
+          const valB = evaluate(n.args[1], deg);
+
+          // Formula: |valB - valA| / ((valA + valB) / 2) * 100
+          const difference = valB.sub(valA).abs();
+          const average = valA.add(valB).div(Decimal.fromString('2'));
+
+          if (average.isZero()) {
+            bad(n, 'Average of values cannot be zero for percent difference');
+          }
+
+          const percent = difference.div(average).mul(Decimal.fromString('100'));
+          const formatted = formatPercent(percent);
+
+          const res = percent;
+          res.display = `${formatted}%`;
+          res.note = `Difference between ${valA.toString()} and ${valB.toString()}: ${formatted}%`;
+          return res;
+        }
+
+        // Requirement 16: Statistical Calculations (Population convention: ÷ N)
+        if (n.f === 'mean' || n.f === 'medn' || n.f === 'mode' || n.f === 'stdev' || n.f === 'var' || n.f === 'stats') {
+          const extractDataset = (args, funcName) => {
+            if (!args || args.length === 0) {
+              bad(n, 'Statistics cannot be computed for an empty dataset');
+            }
+
+            let rawNodes = args;
+            if (args.length === 1 && args[0].t === 'list') {
+              rawNodes = args[0].items;
+              if (rawNodes.length === 0) {
+                bad(n, 'Statistics cannot be computed for an empty dataset');
+              }
+            }
+
+            const values = [];
+            for (let i = 0; i < rawNodes.length; i++) {
+              const item = rawNodes[i];
+              if (item.t === 'list') {
+                bad(item, `Pass a single dataset to ${funcName}, for example ${funcName}(1, 2, 3) or ${funcName}([1, 2, 3])`);
+              }
+              values.push(evaluate(item, deg));
+            }
+            return values;
+          };
+
+          const compareDecimals = (a, b) => {
+            const diff = a.sub(b);
+            if (diff.isZero()) return 0;
+            return diff.isNegative() ? -1 : 1;
+          };
+
+          const formatStatDecimal = (dec, maxDecimals = 6) => {
+            const rawStr = dec.toString();
+            const dot = rawStr.indexOf('.');
+            if (dot === -1 || rawStr.includes('e') || rawStr.includes('E')) {
+              return rawStr;
+            }
+            const decimals = rawStr.slice(dot + 1);
+            if (decimals.length <= maxDecimals) {
+              return rawStr;
+            }
+            const num = dec.toNumber();
+            if (!Number.isFinite(num)) {
+              return rawStr;
+            }
+            const factor = 10 ** maxDecimals;
+            const rounded = Math.round(num * factor) / factor;
+            if (rounded === 0 && !dec.isZero()) {
+              return Number(num.toPrecision(4)).toString();
+            }
+            return rounded.toString();
+          };
+
+          const computeStatistics = (values) => {
+            const countDec = new Decimal(BigInt(values.length));
+
+            // Arithmetic mean
+            let sum = new Decimal(0n);
+            for (let i = 0; i < values.length; i++) {
+              sum = sum.add(values[i]);
+            }
+            const meanVal = sum.div(countDec);
+
+            // Median from sorted dataset
+            const sorted = values.slice().sort(compareDecimals);
+            let medianVal;
+            const mid = Math.floor(sorted.length / 2);
+            if (sorted.length % 2 === 1) {
+              medianVal = sorted[mid];
+            } else {
+              medianVal = sorted[mid - 1].add(sorted[mid]).div(new Decimal(2n));
+            }
+
+            // Mode frequency count in sorted order
+            const freqMap = new Map();
+            const distinctValues = [];
+            for (let i = 0; i < sorted.length; i++) {
+              const val = sorted[i];
+              const key = val.toString();
+              if (!freqMap.has(key)) {
+                freqMap.set(key, 1);
+                distinctValues.push(val);
+              } else {
+                freqMap.set(key, freqMap.get(key) + 1);
+              }
+            }
+
+            let maxFreq = 0;
+            for (const freq of freqMap.values()) {
+              if (freq > maxFreq) {
+                maxFreq = freq;
+              }
+            }
+
+            const modes = [];
+            for (let i = 0; i < distinctValues.length; i++) {
+              const val = distinctValues[i];
+              if (freqMap.get(val.toString()) === maxFreq) {
+                modes.push(val);
+              }
+            }
+
+            let modeDisplay;
+            let modeNote;
+            let modeNumeric;
+
+            if (values.length > 1 && maxFreq === 1) {
+              modeDisplay = 'No mode';
+              modeNote = 'No mode (all values appear once)';
+              modeNumeric = new Decimal(0n);
+            } else if (modes.length > 1) {
+              const modeLabels = modes.map(m => m.toString()).join(', ');
+              modeDisplay = modeLabels;
+              modeNote = `Multiple modes (${modeLabels}; each appears ${maxFreq} times)`;
+              modeNumeric = modes[0];
+            } else {
+              modeDisplay = modes[0].toString();
+              modeNote = `Mode: ${modeDisplay} (appears ${maxFreq} ${maxFreq === 1 ? 'time' : 'times'})`;
+              modeNumeric = modes[0];
+            }
+
+            // Population variance (÷ N) and population standard deviation
+            let squaredDiffSum = new Decimal(0n);
+            for (let i = 0; i < values.length; i++) {
+              const diff = values[i].sub(meanVal);
+              squaredDiffSum = squaredDiffSum.add(diff.mul(diff));
+            }
+            const varianceVal = squaredDiffSum.div(countDec);
+            const stdevVal = varianceVal.sqrt();
+
+            return {
+              count: values.length,
+              meanVal,
+              medianVal,
+              modeDisplay,
+              modeNote,
+              modeNumeric,
+              varianceVal,
+              stdevVal
+            };
+          };
+
+          const values = extractDataset(n.args, n.f);
+          const statsResult = computeStatistics(values);
+
+          if (n.f === 'mean') {
+            const res = new Decimal(statsResult.meanVal.m, statsResult.meanVal.exp);
+            res.note = `Arithmetic mean (n = ${statsResult.count})`;
+            return res;
+          }
+
+          if (n.f === 'medn') {
+            const res = new Decimal(statsResult.medianVal.m, statsResult.medianVal.exp);
+            res.note = `Median (n = ${statsResult.count})`;
+            return res;
+          }
+
+          if (n.f === 'mode') {
+            const res = new Decimal(statsResult.modeNumeric.m, statsResult.modeNumeric.exp);
+            res.display = statsResult.modeDisplay;
+            res.note = statsResult.modeNote;
+            return res;
+          }
+
+          if (n.f === 'var') {
+            const res = new Decimal(statsResult.varianceVal.m, statsResult.varianceVal.exp);
+            res.note = `Population variance (÷ N, n = ${statsResult.count})`;
+            return res;
+          }
+
+          if (n.f === 'stdev') {
+            const res = new Decimal(statsResult.stdevVal.m, statsResult.stdevVal.exp);
+            res.note = `Population standard deviation (÷ N, n = ${statsResult.count})`;
+            return res;
+          }
+
+          if (n.f === 'stats') {
+            const res = new Decimal(0n);
+            res.display = [
+              `Mean: ${formatStatDecimal(statsResult.meanVal)}`,
+              `Median: ${formatStatDecimal(statsResult.medianVal)}`,
+              `Mode: ${statsResult.modeDisplay}`,
+              `Pop. Variance: ${formatStatDecimal(statsResult.varianceVal)}`,
+              `Pop. Stdev: ${formatStatDecimal(statsResult.stdevVal)}`
+            ].join('\n');
+            res.note = `Statistics (n = ${statsResult.count}, population ÷ N)`;
+            return res;
+          }
+        }
+
+        if (n.args.length !== 1) {
+          bad(n, `${n.f} requires 1 argument`);
+        }
         const a = evaluate(n.a, deg);
         if (n.f === 'abs') return a.abs();
         if (n.f === 'sqrt') { if (a.isNegative()) bad(n, 'sqrt needs a value of 0 or more'); return a.sqrt(); }
@@ -331,7 +828,7 @@
   function run(src, deg, ans) {
     try {
       const v = evaluate(parse(src, ans), deg);
-      return { ok: true, value: v.toString() };
+      return { ok: true, value: v.toString(), display: v.display, note: v.note };
     }
     catch (e) { if (e instanceof PErr) return { ok: false, err: e }; throw e; }
   }
@@ -354,7 +851,15 @@
     let s, q;
     if (n.t === 'num') { s = n.s || n.v.toString().replace('-', '−'); q = (n.v.isNegative() && !n.s) ? 3 : 5; }
     else if (n.t === 'neg') { s = '−' + str(n.x, 4, deg); q = 3; }
-    else if (n.t === 'call') { s = `${n.f === 'sqrt' ? '√' : n.f}(${str(n.a, 0, deg)}${deg && /^(sin|cos|tan)$/.test(n.f) ? '°' : ''})`; q = 5; }
+    else if (n.t === 'call') {
+      const inner = n.args ? n.args.map(x => str(x, 0, deg)).join(', ') : str(n.a, 0, deg);
+      s = `${n.f === 'sqrt' ? '√' : n.f}(${inner}${deg && /^(sin|cos|tan)$/.test(n.f) ? '°' : ''})`;
+      q = 5;
+    }
+    else if (n.t === 'list') {
+      s = `[${n.items.map(x => str(x, 0, deg)).join(', ')}]`;
+      q = 5;
+    }
     else {
       const m = n.op === '+' || n.op === '-' ? [1, 1, 2] : n.op === '^' ? [4, 5, 3] : [2, 2, 3];
       q = m[0]; const l = str(n.l, m[1], deg), r = str(n.r, m[2], deg);
@@ -366,21 +871,29 @@
     const ast = parse(src, ans), steps = [];
     (function fold(n) {
       if (n.t === 'bin') { fold(n.l); fold(n.r); }
-      else if (n.t === 'call') fold(n.a);
+      else if (n.t === 'call') (n.args || [n.a]).forEach(fold);
+      else if (n.t === 'list') n.items.forEach(fold);
       else if (n.t === 'neg') { fold(n.x); if (n.x.t === 'num' && !n.x.s) { n.v = n.x.v.neg(); delete n.x; n.t = 'num'; } }
     })(ast);
     while (ast.t !== 'num') {
       let best = null, rank = 0;
       (function walk(n) {
         if (n.t === 'bin') walk(n.l); else if (n.t === 'neg') walk(n.x); else walk2(n);
-        function walk2(n) { if (n.t === 'call') walk(n.a); }
-        const ok = n.t === 'bin' ? n.l.t === 'num' && n.r.t === 'num' : n.t === 'neg' ? n.x.t === 'num' : n.t === 'call' && n.a.t === 'num';
+        function walk2(n) {
+          if (n.t === 'call') (n.args || [n.a]).forEach(walk);
+          else if (n.t === 'list') n.items.forEach(walk);
+        }
+        const ok = n.t === 'bin'
+          ? n.l.t === 'num' && n.r.t === 'num'
+          : n.t === 'neg'
+            ? n.x.t === 'num'
+            : n.t === 'call' && (n.args || [n.a]).every(x => x.t === 'num' || (x.t === 'list' && x.items.every(item => item.t === 'num')));
         if (ok) { const r = n.t !== 'bin' || n.op === '^' ? 3 : n.op === '*' || n.op === '/' ? 2 : 1; if (r > rank) { rank = r; best = n; } }
         if (n.t === 'bin') walk(n.r);
       })(ast);
       const sub = str(best, 0, deg), val = evaluate(best, deg), isNeg = best.t === 'neg';
       Object.keys(best).forEach(k => delete best[k]); best.t = 'num'; best.v = val;
-      if (!isNeg) steps.push({ sub, val: val.toString().replace('-', '−'), rest: str(ast, 0, deg) });
+      if (!isNeg) steps.push({ sub, val: (val.display || val.toString()).replace('-', '−'), rest: str(ast, 0, deg) });
     }
     return steps;
   }
@@ -685,10 +1198,10 @@ categorySelect.addEventListener('change', () => {
   }
 
   // Add a completed calculation to history.
-  function addHistory( expression, result )
+  function addHistory( expression, result, display )
   {
     // Store the original expression and numeric result.
-    history.push( { expression: expression, result: result } );
+    history.push( { expression: expression, result: result, display: display } );
 
     // Keep only the 100 most recent calculations.
     if ( history.length > 100 )
@@ -726,7 +1239,7 @@ categorySelect.addEventListener('change', () => {
       button.className = 'history-entry';
 
       // Show the expression and its result.
-     button.textContent = item.expression + ' = ' + item.result;
+      button.textContent = item.expression + ' = ' + (item.display || item.result);
 
       button.title = 'Recall this expression';
 
@@ -776,9 +1289,15 @@ categorySelect.addEventListener('change', () => {
 
   function preview() {
     msg.className = ''; msg.replaceChildren(); hideSteps();
-    if (!exp.value.trim()) { out.textContent = '0'; return; }
+    if (!exp.value.trim()) {
+      out.textContent = '0';
+      out.classList.remove('stats-out');
+      return;
+    }
     const r = run(exp.value, deg, previousAnswer);
-    out.textContent = r.ok ? r.value.replace('-', '−') : '';
+    const displayStr = r.ok ? (r.display || r.value).replaceAll('-', '−') : '';
+    out.textContent = displayStr;
+    out.classList.toggle('stats-out', displayStr.includes('\n'));
   }
   function commit() {
     const s = exp.value; if (!s.trim()) return;
@@ -786,9 +1305,14 @@ categorySelect.addEventListener('change', () => {
     const r = run(s, deg, previousAnswer);
     msg.replaceChildren();
     if (r.ok) {
-      out.textContent = r.value.replace('-', '−'); msg.textContent = s + ' ='; msg.className = '';
-      last = r.value.replace(/^(-?[\d.]+)e([+-]?\d+)$/i, '($1×10^$2)'); fresh = true; showSteps(s); addHistory(s, r.value); previousAnswer = Decimal.fromString(r.value);
+      const displayStr = (r.display || r.value).replaceAll('-', '−');
+      out.textContent = displayStr;
+      out.classList.toggle('stats-out', displayStr.includes('\n'));
+      msg.textContent = r.note || (s + ' ='); msg.className = '';
+      last = r.value.replace(/^(-?[\d.]+)e([+-]?\d+)$/i, '($1×10^$2)'); fresh = true; showSteps(s); addHistory(s, r.value, r.display); previousAnswer = Decimal.fromString(r.value);
     } else {
+      out.textContent = '';
+      out.classList.remove('stats-out');
       const e = r.err, pre = document.createElement('pre'), u = document.createElement('u');
       msg.className = 'err'; msg.append(`${e.message} (column ${e.pos + 1})`);
       u.textContent = s.substr(e.pos, e.len) || ' ';

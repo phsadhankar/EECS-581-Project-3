@@ -102,6 +102,11 @@ main {
   min-height: 48px;
   overflow-wrap: anywhere;
   padding: 4px;
+  white-space: pre-line;
+}
+#out.stats-out {
+  font-size: 16px;
+  line-height: 1.45;
 }
 #msg {
   min-height: 44px;
