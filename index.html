@@ -8,7 +8,7 @@
   INPUT:          User expressions, button clicks, and mode selections.
   OUTPUT:         Displays calculator results, saved history, and interface controls.
 
-  COLLABORATORS:  Ivan Kullaya, Gael Salazar-Morales, Gabriel Haro-Villa, Carter Ruff
+  COLLABORATORS:  Ivan Kullaya, Gael Salazar-Morales, Gabriel Haro-Villa, Carter Ruff, Joshua Fakunmoju
   SOURCES:        TBD
 
   AUTHOR:         Pruthviraj Sadhankar
@@ -100,6 +100,7 @@
         <button data-k="Ans" class="op">Ans</button>      <!-- Requirement 03: Ans button -->
         <button data-a="converter" class="op">unit</button>
         <button id="FuncToggle" class="op">func</button>  <!-- Func Button -->
+        <button id="graphToggle" class="op" type="button" aria-controls="graphPanel" aria-expanded="false" hidden>Graph</button>
       </div>
 
       <div class="keys">
@@ -130,6 +131,86 @@
         <button data-k=".">.</button>
         <button data-a="eq" class="eq">=</button>
       </div>
+
+      <!-- Requirement 06 plus sprint 2 Requirements 19, 22, and 24 -->
+      <section id="graphPanel" class="graph-panel" aria-label="2D graph viewer" hidden>
+        <div class="graph-heading">
+          <h2>2D Graph</h2>
+          <p>Plot a function of <code>x</code>, such as <code>x^2</code> or <code>sin(x)</code>.</p>
+        </div>
+        <form id="graphForm" class="graph-form">
+          <label for="graphExpr">y =</label>
+          <input id="graphExpr" type="text" value="x^2" autocomplete="off" spellcheck="false" aria-label="Function of x" />
+          <button class="graph-plot" type="submit">Plot</button>
+        </form>
+        <div class="graph-tools" aria-label="Graph controls">
+          <button id="graphZoomOut" type="button" aria-label="Zoom out">−</button>
+          <button id="graphZoomIn" type="button" aria-label="Zoom in">+</button>
+          <button id="graphReset" type="button">Reset view</button>
+          <span id="graphView" aria-live="polite"></span>
+        </div>
+        <h3 id="graphTitle" class="graph-title">y = x^2</h3>
+        <div class="graph-canvas-wrap">
+          <canvas id="graphCanvas" tabindex="0" role="img" aria-label="Graph of y equals x squared"></canvas>
+        </div>
+        <p class="graph-help">Drag or use arrow keys to pan; use the wheel or +/− to zoom. Views and settings save in this browser.</p>
+        <p id="graphStatus" class="graph-status" role="status" aria-live="polite"></p>
+
+        <details id="graphCustomization" class="graph-customization">
+          <summary>Graph customization and display</summary>
+          <div class="graph-settings-grid">
+            <label class="graph-field" for="graphLabel">Graph label
+              <input id="graphLabel" type="text" maxlength="80" placeholder="Defaults to y = equation" />
+            </label>
+            <label class="graph-field" for="graphColor">Graph color
+              <select id="graphColor">
+                <option value="teal">Teal</option>
+                <option value="blue">Blue</option>
+                <option value="orange">Orange</option>
+                <option value="purple">Purple</option>
+                <option value="rose">Rose</option>
+              </select>
+            </label>
+            <label class="graph-check"><input id="graphGrid" type="checkbox" checked /> Show gridlines</label>
+            <label class="graph-check"><input id="graphTickLabels" type="checkbox" checked /> Show coordinate labels</label>
+          </div>
+          <fieldset class="graph-axis-settings">
+            <legend>Visible axis bounds (x/y units)</legend>
+            <div class="graph-range-grid">
+              <label class="graph-field" for="graphXMin">X min<input id="graphXMin" type="number" step="any" /></label>
+              <label class="graph-field" for="graphXMax">X max<input id="graphXMax" type="number" step="any" /></label>
+              <label class="graph-field" for="graphYMin">Y min<input id="graphYMin" type="number" step="any" /></label>
+              <label class="graph-field" for="graphYMax">Y max<input id="graphYMax" type="number" step="any" /></label>
+            </div>
+            <div class="graph-setting-actions">
+              <button id="graphApplySettings" type="button">Apply settings</button>
+              <button id="graphDefaults" type="button">Restore graph defaults</button>
+            </div>
+          </fieldset>
+          <p id="graphRangeStatus" class="graph-range-status" role="status" aria-live="polite">Automatic ranges; pan and zoom are saved per graph.</p>
+        </details>
+
+        <section class="graph-history" aria-labelledby="graphHistoryHeading">
+          <h3 id="graphHistoryHeading">Saved graph history</h3>
+          <p class="graph-help">Open a saved equation to restore its view. Select up to four to compare.</p>
+          <p id="graphHistoryEmpty" class="graph-empty">No saved graphs yet. Plot an equation to start a history.</p>
+          <ol id="graphHistoryList" class="graph-history-list"></ol>
+        </section>
+
+        <section class="graph-comparison" aria-labelledby="graphComparisonHeading">
+          <div class="graph-comparison-header">
+            <h3 id="graphComparisonHeading">Graph comparison</h3>
+            <label for="graphCompareMode">View
+              <select id="graphCompareMode">
+                <option value="separate">Separate panes</option>
+                <option value="overlay">Overlay shared axes</option>
+              </select>
+            </label>
+          </div>
+          <p id="graphCompareStatus" class="graph-help" role="status" aria-live="polite">Choose at least two saved graphs using the Compare boxes above.</p>
+          <div id="graphCompareView" class="graph-compare-view"></div>
+        </section>
+      </section>
 
       <!-- Requirement 03: Saved calculation history -->
       <details id="historyPanel" class="history-panel">
@@ -207,5 +288,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/particles.js/2.0.0/particles.min.js"></script>
     <script src="./functions.js"></script>
     <script src="./script.js"></script>
+    <script src="./graph.js"></script>
   </body>
 </html>
