@@ -1132,6 +1132,11 @@ categorySelect.addEventListener('change', () => {
   const exp = $('expr'), out = $('out'), msg = $('msg'), angleBtn = $('angle');
   const modeSelect = $('modeSelect');
   const sciKeys = document.querySelector('.keys.sci');
+  // Requirement 09: Financial calculation elements
+  const financialPanel = $('financialPanel');
+  const financialType = $('financialType');
+  const compoundInterestPanel = $('compoundInterestPanel');
+  const loanPaymentPanel = $('loanPaymentPanel');
   let deg = false, fresh = false, last = '';
   let mode = 'basic';
 
@@ -1147,6 +1152,12 @@ categorySelect.addEventListener('change', () => {
     mode = nextMode;
     modeSelect.value = mode;
     sciKeys.hidden = mode === 'basic';
+    // Show financial options only in Financial mode
+    financialPanel.hidden = mode !== 'financial';
+    // Hide the unit converter when switching modes
+    if (mode === 'financial') {
+      converterPanel.hidden = true;
+    }
   }
 
   const STORAGE_KEY = 'calculator-history-v1';  // Requirement 03: Name used to save our history in the browser.
@@ -1437,6 +1448,117 @@ categorySelect.addEventListener('change', () => {
   }});
   exp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } });
   modeSelect.addEventListener('change', () => setMode(modeSelect.value));
+  // Requirement 09: Show the selected financial calculation
+  financialType.addEventListener('change', () => {
+    compoundInterestPanel.hidden = financialType.value !== 'compound';
+    loanPaymentPanel.hidden = financialType.value !== 'loan';
+
+    out.textContent = '0';
+    msg.textContent = '';
+  });
+
+  // Requirement 09: Compound Interest calculation
+  $('calculateCompound').addEventListener('click', () => {
+    const principal = Number($('principal').value);
+    const annualRate = Number($('annualRate').value);
+    const frequency = Number($('compoundingFrequency').value);
+    const years = Number($('investmentYears').value);
+
+    // Validate the inputs
+    if (
+      $('principal').value.trim() === '' ||
+      $('annualRate').value.trim() === '' ||
+      $('investmentYears').value.trim() === '' ||
+      !Number.isFinite(principal) ||
+      !Number.isFinite(annualRate) ||
+      !Number.isFinite(years) ||
+      principal <= 0 ||
+      annualRate < 0 ||
+      years <= 0
+    ) {
+      out.textContent = '';
+      msg.className = 'err';
+      msg.textContent = 'Please enter a valid principal, interest rate, and investment term.';
+      return;
+    }
+
+    // Convert the annual rate from a percentage to a decimal
+    const rate = annualRate / 100;
+
+    // Calculate the final balance
+    const amount = principal * Math.pow(1 + rate / frequency, frequency * years);
+
+    if (!Number.isFinite(amount)) {
+      out.textContent = '';
+      msg.className = 'err';
+      msg.textContent = 'The result is too large to calculate.';
+      return;
+    }
+
+    // Calculate the interest earned
+    const interest = amount - principal;
+
+    // Display the results
+    out.textContent = amount.toLocaleString('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    });
+
+    msg.textContent = '';
+    msg.className = '';
+  });
+    // Requirement 09: Loan Payment calculation
+  $('calculateLoan').addEventListener('click', () => {
+    const principal = Number($('loanPrincipal').value);
+    const annualRate = Number($('loanRate').value);
+    const frequency = Number($('paymentFrequency').value);
+    const years = Number($('loanYears').value);
+
+    // Calculate the total number of payments
+    const totalPayments = frequency * years;
+
+    // Validate the inputs
+    if (
+      $('loanPrincipal').value.trim() === '' ||
+      $('loanRate').value.trim() === '' ||
+      $('loanYears').value.trim() === '' ||
+      !Number.isFinite(principal) ||
+      !Number.isFinite(annualRate) ||
+      !Number.isFinite(years) ||
+      principal <= 0 ||
+      annualRate < 0 ||
+      years <= 0 ||
+      !Number.isInteger(totalPayments)
+    ) {
+      out.textContent = '';
+      msg.className = 'err';
+      msg.textContent = 'Please enter valid loan information. The loan term must result in a whole number of payments.';
+      return;
+    }
+
+    // Convert the annual interest rate to a periodic rate
+    const periodicRate = (annualRate / 100) / frequency;
+
+    let payment;
+
+    // Calculate payment (special case for zero interest)
+    if (periodicRate === 0) {
+      payment = principal / totalPayments;
+    } else {
+      payment =
+        principal * periodicRate /
+        (1 - Math.pow(1 + periodicRate, -totalPayments));
+    }
+
+    // Display the payment amount
+    out.textContent = payment.toLocaleString('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    });
+
+    msg.textContent = '';
+    msg.className = '';
+  });
   setMode(mode);
 
   /* background: particles.js */

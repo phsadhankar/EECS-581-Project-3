@@ -62,8 +62,73 @@
       <div id="out" aria-live="polite">0</div>
       <div id="msg" aria-live="polite"></div>
 
-      <div id="converterPanel" hidden="">
+      <!-- Requirement 09: Financial calculations -->
+      <div id="financialPanel" hidden>
+        <label for="financialType">Select Calculation:</label>
+        <select id="financialType">
+          <option value="">Choose a calculation</option>
+          <option value="compound">Compound Interest</option>
+          <option value="loan">Loan Payments</option>
+        </select>
 
+        <!-- Compound Interest inputs -->
+        <div id="compoundInterestPanel" hidden>
+          <label for="principal">Principal Amount ($):</label>
+          <input type="number" id="principal" placeholder="1000" step="any" />
+
+          <label for="annualRate">Annual Interest Rate (%):</label>
+          <input type="number" id="annualRate" placeholder="10" step="any" />
+
+          <label for="compoundingFrequency">Compounding Frequency:</label>
+          <select id="compoundingFrequency">
+            <option value="1">Annually</option>
+            <option value="2">Semiannually</option>
+            <option value="4">Quarterly</option>
+            <option value="12" selected>Monthly</option>
+            <option value="365">Daily</option>
+          </select>
+
+          <label for="investmentYears">Investment Term (Years):</label>
+          <input
+            type="number"
+            id="investmentYears"
+            placeholder="1"
+            step="any"
+          />
+
+          <button type="button" id="calculateCompound">Calculate</button>
+        </div>
+
+        <!-- Loan Payment inputs -->
+        <div id="loanPaymentPanel" hidden>
+          <label for="loanPrincipal">Loan Amount ($):</label>
+          <input
+            type="number"
+            id="loanPrincipal"
+            placeholder="10000"
+            step="any"
+          />
+
+          <label for="loanRate">Annual Interest Rate / APR (%):</label>
+          <input type="number" id="loanRate" placeholder="6" step="any" />
+
+          <label for="paymentFrequency">Payment Frequency:</label>
+          <select id="paymentFrequency">
+            <option value="1">Annually</option>
+            <option value="4">Quarterly</option>
+            <option value="12" selected>Monthly</option>
+            <option value="26">Biweekly</option>
+            <option value="52">Weekly</option>
+          </select>
+
+          <label for="loanYears">Loan Term (Years):</label>
+          <input type="number" id="loanYears" placeholder="3" step="any" />
+
+          <button type="button" id="calculateLoan">Calculate</button>
+        </div>
+      </div>
+
+      <div id="converterPanel" hidden="">
         <label for="conversionCategory">Conversion Type:</label>
         <select id="conversionCategory">
           <option value="">Select a category</option>
@@ -75,7 +140,6 @@
         </select>
 
         <div id="conversionControls" hidden>
-
           <label for="fromUnit">From:</label>
           <select id="fromUnit"></select>
 
@@ -97,7 +161,8 @@
         <button data-k=")">)</button>
         <button data-k="abs(">abs</button>
         <button data-k="e">e</button>
-        <button data-k="Ans" class="op">Ans</button>      <!-- Requirement 03: Ans button -->
+        <button data-k="Ans" class="op">Ans</button>
+        <!-- Requirement 03: Ans button -->
         <button data-a="converter" class="op">unit</button>
         <button id="FuncToggle" class="op">func</button>  <!-- Func Button -->
         <button id="graphToggle" class="op" type="button" aria-controls="graphPanel" aria-expanded="false" hidden>Graph</button>
@@ -214,39 +279,31 @@
 
       <!-- Requirement 03: Saved calculation history -->
       <details id="historyPanel" class="history-panel">
-      <summary>Calculation history</summary>
-      
-      <!-- Requirement 03: Controls for managing saved calculations. -->
-      <!-- Requirement 23: Export Calculation History -->
-      <div class="history-actions">
-        <!-- Requirement 23: Download history as a text file -->
-        <button id="exportTXT" type="button">
-          Export TXT
-        </button>
+        <summary>Calculation history</summary>
 
-        <!-- Requirement 23: Download history as a CSV file -->
-        <button id="exportCSV" type="button">
-          Export CSV
-        </button>
+        <!-- Requirement 03: Controls for managing saved calculations. -->
+        <!-- Requirement 23: Export Calculation History -->
+        <div class="history-actions">
+          <!-- Requirement 23: Download history as a text file -->
+          <button id="exportTXT" type="button">Export TXT</button>
 
-        <!-- Requirement 03: Button to clear history -->  
-        <button id="clearHistory" type="button">
-          Clear History
-        </button>
-      </div>
+          <!-- Requirement 23: Download history as a CSV file -->
+          <button id="exportCSV" type="button">Export CSV</button>
 
-      <!-- Requirement 23: Show messages about exporting -->
-      <p id="exportMessage" role="status" aria-live="polite"></p>
+          <!-- Requirement 03: Button to clear history -->
+          <button id="clearHistory" type="button">Clear History</button>
+        </div>
 
-      <!-- Requirement 03: Displayed when no calculations have been saved. -->
-      <p id="historyEmpty">
-        No calculations yet.
-      </p>
+        <!-- Requirement 23: Show messages about exporting -->
+        <p id="exportMessage" role="status" aria-live="polite"></p>
 
-      <!-- Requirement 03: Adds the saved calculation entries to this list. -->
-      <ol id="historyList"></ol>
+        <!-- Requirement 03: Displayed when no calculations have been saved. -->
+        <p id="historyEmpty">No calculations yet.</p>
+
+        <!-- Requirement 03: Adds the saved calculation entries to this list. -->
+        <ol id="historyList"></ol>
       </details>
-      
+
       <details id="steps" hidden>
         <summary>Show steps</summary>
         <ol id="stepList"></ol>
@@ -256,7 +313,6 @@
     <!-- Functions Side Menu -->
 
     <aside id="sideMenu" class="side-menu">
-
       <!-- Title -->
       <div class="side-menu-header">
         <h2>Functions</h2>
@@ -268,15 +324,15 @@
           <select id="categoryFilter" aria-label="Filter by category">
             <option value="all">All Categories</option>
           </select>
-        
-        <!-- Search Bar-->
-        <input
-          type="text"
-          id="functionSearch"
-          placeholder="Search..."
-          aria-label="Search functions"
-          autocomplete="off"
-        />
+
+          <!-- Search Bar-->
+          <input
+            type="text"
+            id="functionSearch"
+            placeholder="Search..."
+            aria-label="Search functions"
+            autocomplete="off"
+          />
         </div>
 
         <!-- List of Functions-->

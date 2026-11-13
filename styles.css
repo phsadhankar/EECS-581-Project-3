@@ -233,27 +233,24 @@ noscript {
 }
 
 /* Requirement 03: Container for the history section */
-.history-panel
-{
+.history-panel {
   margin-top: 12px;
-  border-top: 1px solid var( --line );
+  border-top: 1px solid var(--line);
   padding-top: 8px;
   font-size: 14px;
 }
 
 /* Requirement 03: Clickable history heading */
-.history-panel summary
-{
+.history-panel summary {
   cursor: pointer;
-  color: var( --accent );
+  color: var(--accent);
   font-weight: 600;
   min-height: 32px;
 }
 
 /* Requirement 03: Area containing the clear history button */
 /* Requirement 23: History export button */
-.history-actions
-{
+.history-actions {
   display: flex;
   justify-content: flex-end;
   margin: 8px 0;
@@ -265,68 +262,60 @@ noscript {
 /* Requirement 23: Includes export button */
 #clearHistory,
 #exportTXT,
-#exportCSV
-{
+#exportCSV {
   min-height: 32px;
   padding: 6px 12px;
   font-size: 13px;
-  background: var( --soft );
-  color: var( --accent );
+  background: var(--soft);
+  color: var(--accent);
 }
 
 /* Requirement 23: Export message display */
-#exportMessage
-{
+#exportMessage {
   font-size: 12px;
-  color: var( --mute );
+  color: var(--mute);
   text-align: center;
 }
 
 /* Requirement 03: List of previous calculations */
-#historyList
-{
+#historyList {
   margin: 8px 0;
   padding-left: 22px;
 }
 
 /* Requirement 03: Space between history items */
-#historyList li
-{
+#historyList li {
   margin-bottom: 6px;
 }
 
 /* Requirement 03: Buttons containing previous calculations */
-.history-entry
-{
+.history-entry {
   width: 100%;
   min-height: 36px;
   padding: 8px;
   text-align: left;
   font-size: 14px;
-  font-family: var( --mono );
-  background: var( --key );
-  color: var( --ink );
+  font-family: var(--mono);
+  background: var(--key);
+  color: var(--ink);
   overflow-wrap: anywhere;
 }
 
 /* Requirement 03: Highlight a calculation when hovering */
-.history-entry:hover
-{
-  background: var( --soft );
+.history-entry:hover {
+  background: var(--soft);
 }
 
 /* Requirement 03: Message shown when history is empty */
-#historyEmpty
-{
-  color: var( --mute );
+#historyEmpty {
+  color: var(--mute);
   text-align: center;
   font-size: 14px;
   padding: 12px;
 }
 
 /* Requirement 03: Hide the empty message when history exists */
-#historyEmpty[hidden]
-{
+#historyEmpty[hidden] {
   display: none;
 }
 
@@ -579,7 +568,9 @@ body.graph-open { align-items: flex-start; }
   border: 1px solid var(--line);
   border-radius: 8px;
 
-  font: 13px system-ui, sans-serif;
+  font:
+    13px system-ui,
+    sans-serif;
 }
 
 #categoryFilter {
@@ -640,4 +631,53 @@ body.graph-open { align-items: flex-start; }
   margin-left: 8px;
   color: var(--mute);
   font: 12px var(--mono);
+}
+
+/* Requirement 09: Financial calculations */
+
+#financialPanel {
+  margin: 8px 0;
+  padding: 8px 4px;
+}
+
+#financialPanel[hidden],
+#compoundInterestPanel[hidden],
+#loanPaymentPanel[hidden] {
+  display: none;
+}
+
+#financialPanel label {
+  display: block;
+  margin: 6px 0 4px;
+  color: var(--mute);
+  font-size: 12px;
+}
+
+#financialPanel input,
+#financialPanel select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--key);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+#financialPanel input:focus,
+#financialPanel select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+#financialPanel button {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 12px;
+  padding: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 14px;
 }
