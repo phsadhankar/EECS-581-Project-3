@@ -851,6 +851,7 @@
   }
   function openConverter() {
     converterPanel.hidden = false;
+    tolerancePanel.hidden = true;
     out.hidden = false;
     msg.hidden = false;
   }
@@ -861,6 +862,28 @@
     msg.hidden = false;
     preview();
   }
+
+  function calculateTolerance() { // tolerance calculator, R15
+    const nominal = Number($('nominalValue').value);
+    const tolerance = Number($('toleranceValue').value);
+    const unit = $('toleranceUnit').value;
+    if (
+        $('nominalValue').value === '' ||
+        $('toleranceValue').value === '' ||
+        tolerance < 0
+    ) {
+        msg.textContent = 'Enter a nominal value and a non-negative tolerance.';
+        return;
+    }
+
+    msg.textContent = '';
+
+    const minimum = nominal - tolerance;
+    const maximum = nominal + tolerance;
+
+    out.textContent = `[${minimum.toFixed(1)}, ${maximum.toFixed(1)}] ${unit}`;
+  }
+  $('calculateTolerance').addEventListener('click', calculateTolerance);
 
   /* ---------- step by step ---------- */
   const SYM = { '+': '+', '-': '−', '*': '×', '/': '÷', '^': '^' };
@@ -932,6 +955,7 @@
   /* ---------- interface ---------- */
   // Unit Converter elements
   const converterPanel = $('converterPanel');
+  const tolerancePanel = $('tolerancePanel');
   const categorySelect = $('conversionCategory');
   const conversionControls = $('conversionControls');
   const fromUnit = $('fromUnit');
@@ -1423,6 +1447,10 @@ categorySelect.addEventListener('change', () => {
     else if (b.dataset.a === 'converter') {
       openConverter();
     }
+    else if (b.dataset.a === 'tolerance') {
+      tolerancePanel.hidden = !tolerancePanel.hidden;
+      converterPanel.hidden = true;
+    }
     else if (b.dataset.a === 'clear') {
       if (!converterPanel.hidden) {
         exp.value = '';
@@ -1447,7 +1475,7 @@ categorySelect.addEventListener('change', () => {
     preview();
   }});
   exp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } });
-  modeSelect.addEventListener('change', () => setMode(modeSelect.value));
+  modeSelect.addEventListener('change', () => { converterPanel.hidden = true; tolerancePanel.hidden = true; setMode(modeSelect.value)});
   // Requirement 09: Show the selected financial calculation
   financialType.addEventListener('change', () => {
     compoundInterestPanel.hidden = financialType.value !== 'compound';

@@ -681,3 +681,49 @@ body.graph-open { align-items: flex-start; }
   color: var(--on-accent);
   font-size: 14px;
 }
+/* Requirement 15: Tolerance Calculator */
+
+#tolerancePanel {
+  margin: 8px 0;
+  padding: 8px 4px;
+}
+
+#tolerancePanel[hidden] {
+  display: none;
+}
+
+#tolerancePanel label {
+  display: block;
+  margin: 6px 0 4px;
+  color: var(--mute);
+  font-size: 12px;
+}
+
+#tolerancePanel input,
+#tolerancePanel select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--key);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+#tolerancePanel input:focus,
+#tolerancePanel select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+#tolerancePanel button {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 12px;
+  padding: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 14px;
+}

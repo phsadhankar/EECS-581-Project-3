@@ -148,6 +148,27 @@
         </div>
       </div>
 
+      <!-- Requirement 15: Tolerance calculator -->
+      <div id="tolerancePanel" hidden>
+
+        <label for="nominalValue">Nominal Value:</label>
+        <input type="number" id="nominalValue" placeholder="10.0" step="any">
+
+        <label for="toleranceValue">Tolerance (±):</label>
+        <input type="number" id="toleranceValue" placeholder="0.2" step="any">
+
+        <label for="toleranceUnit">Unit:</label>
+        <select id="toleranceUnit">
+          <option value="mm">Millimeters (mm)</option>
+          <option value="cm">Centimeters (cm)</option>
+          <option value="m">Meters (m)</option>
+          <option value="in">Inches (in)</option>
+        </select>
+
+        <button type="button" id="calculateTolerance">Calculate</button>
+
+      </div>
+
       <div class="keys sci">
         <button data-k="sin(">sin</button>
         <button data-k="cos(">cos</button>
@@ -164,6 +185,7 @@
         <button data-k="Ans" class="op">Ans</button>
         <!-- Requirement 03: Ans button -->
         <button data-a="converter" class="op">unit</button>
+        <button data-a="tolerance" class="op">tol</button>
         <button id="FuncToggle" class="op">func</button>  <!-- Func Button -->
         <button id="graphToggle" class="op" type="button" aria-controls="graphPanel" aria-expanded="false" hidden>Graph</button>
       </div>
