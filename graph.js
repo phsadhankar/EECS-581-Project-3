@@ -4,6 +4,7 @@
  * FILE:            graph.js
  *
  * DESCRIPTION:     Implements interactive 2D graphing of single-variable expressions with input validation, panning, zooming, and view reset.
+ * 
  * INPUT:           Single-variable expressions in x; plot, pan, zoom, and reset actions.
  * OUTPUT:          A 2D graph rendered on a canvas, view-scale information, and input-validation messages.
  *
