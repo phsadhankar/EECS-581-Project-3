@@ -142,6 +142,30 @@ const calculatorFunctions = [
     name: "All Statistics",
     symbol: "stats(",
     categories: ["Statistics"]
+  },
+  {
+    id: "matrix",
+    name: "Matrix",
+    symbol: "matrix",
+    categories: ["Matrices"]
+  },
+  {
+    id: "transpose",
+    name: "Transpose",
+    symbol: "transpose(",
+    categories: ["Matrices"]
+  },
+  {
+    id: "det",
+    name: "Determinant",
+    symbol: "det(",
+    categories: ["Matrices"]
+  },
+  {
+    id: "inverse",
+    name: "Inverse",
+    symbol: "inverse(",
+    categories: ["Matrices"]
   }
 ];
 
