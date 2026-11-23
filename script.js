@@ -936,6 +936,7 @@
   const conversionControls = $('conversionControls');
   const fromUnit = $('fromUnit');
   const toUnit = $('toUnit');
+  const conversionValue = $('conversionValue');
 
   const conversionUnits = {
     length: {
@@ -1011,7 +1012,11 @@ function convertTemperature(value, from, to) {
 // Calculate and display the conversion result
 async function updateConversionResult() {
   const category = categorySelect.value;
-  const value = Number(exp.value);
+  const value = Number(conversionValue.value);
+  conversionValue.min = category === 'temperature' ? '' : '0';
+  if (category && category !== 'temperature' && conversionValue.value !== '' && value < 0) {
+    conversionValue.value = '0';
+  }
 
   // Make sure a category and valid number are selected
   if (!category) {
@@ -1020,7 +1025,7 @@ async function updateConversionResult() {
     return;
   }
 
-  if (exp.value.trim() === '' || !Number.isFinite(value)) {
+  if (conversionValue.value.trim() === '' || !Number.isFinite(value)) {
     out.textContent = '';
     msg.textContent = 'error';
     return;
@@ -1094,10 +1099,23 @@ try {
 // Update result whenever the user changes something
 fromUnit.addEventListener('change', updateConversionResult);
 toUnit.addEventListener('change', updateConversionResult);
+conversionValue.addEventListener('input', updateConversionResult);
+async function calculateConversionHistory() {
+  await updateConversionResult();
+  if (!categorySelect.value || conversionValue.value.trim() === '' || out.textContent.trim() === '') return;
+  const expression = `${conversionValue.value} ${fromUnit.value} to ${toUnit.value}`;
+  addHistory(expression, out.textContent, out.textContent);
+}
+$('conversionCalculate').addEventListener('click', calculateConversionHistory);
 
 // Update available units when category changes
 categorySelect.addEventListener('change', () => {
   const category = categorySelect.value;
+  if (category) {
+    const placeholderOption = categorySelect.querySelector('option[value=""]');
+    if (placeholderOption) placeholderOption.disabled = true;
+  }
+  conversionValue.min = category === 'temperature' ? '' : '0';
 
   fromUnit.innerHTML = '';
   toUnit.innerHTML = '';
@@ -1132,6 +1150,11 @@ categorySelect.addEventListener('change', () => {
   const exp = $('expr'), out = $('out'), msg = $('msg'), angleBtn = $('angle');
   const modeSelect = $('modeSelect');
   const sciKeys = document.querySelector('.keys.sci');
+  const basicKeys = $('basicKeys');
+  const financialPanel = $('financialPanel');
+  const fractionPanel = $('fractionPanel');
+  const programmerPanel = $('programmerPanel');
+  const complexPanel = $('complexPanel');
   let deg = false, fresh = false, last = '';
   let mode = 'basic';
 
@@ -1139,14 +1162,36 @@ categorySelect.addEventListener('change', () => {
     basic: 'Basic calculation mode',
     scientific: 'Scientific calculation mode',
     financial: 'Financial calculation mode',
-    conversion: 'Conversion calculation mode'
+  conversion: 'Conversion calculation mode',
+  fraction: 'Fraction calculation mode',
+  programmer: 'Programmer calculation mode',
+  complex: 'Complex-number calculation mode'
   };
 
   function setMode(nextMode) {
     if (!modeNames[nextMode]) return;
     mode = nextMode;
     modeSelect.value = mode;
-    sciKeys.hidden = mode === 'basic';
+    sciKeys.hidden = mode !== 'scientific';
+    basicKeys.hidden = mode !== 'basic' && mode !== 'scientific';
+    exp.hidden = mode === 'conversion' || mode === 'fraction' || mode === 'programmer' || mode === 'complex' || mode === 'financial';
+    converterPanel.hidden = mode !== 'conversion';
+    financialPanel.hidden = mode !== 'financial';
+    fractionPanel.hidden = mode !== 'fraction';
+    programmerPanel.hidden = mode !== 'programmer';
+    complexPanel.hidden = mode !== 'complex';
+    if (mode !== 'conversion') conversionControls.hidden = true;
+    const functionMenu = $('sideMenu');
+    if (functionMenu) functionMenu.classList.remove('open');
+    if (mode === 'fraction' || mode === 'programmer' || mode === 'complex' || mode === 'financial') {
+      out.textContent = '0';
+      out.classList.remove('stats-out');
+      out.classList.remove('fraction-out');
+      msg.textContent = '';
+      msg.className = '';
+    } else {
+      preview();
+    }
   }
 
   const STORAGE_KEY = 'calculator-history-v1';  // Requirement 03: Name used to save our history in the browser.
@@ -1356,7 +1401,7 @@ categorySelect.addEventListener('change', () => {
     msg.className = ''; msg.replaceChildren(); hideSteps();
     if (!exp.value.trim()) {
       out.textContent = '0';
-      out.classList.remove('stats-out');
+      out.className = '';
       return;
     }
     const r = run(exp.value, deg, previousAnswer);
@@ -1403,7 +1448,9 @@ categorySelect.addEventListener('change', () => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.k) {
       if (!converterPanel.hidden) {
-        exp.value += b.dataset.k;
+        if (/^[0-9.]$/.test(b.dataset.k)) {
+          conversionValue.value += b.dataset.k;
+        }
         updateConversionResult();
       } else {
       insert(b.dataset.k);
@@ -1414,7 +1461,7 @@ categorySelect.addEventListener('change', () => {
     }
     else if (b.dataset.a === 'clear') {
       if (!converterPanel.hidden) {
-        exp.value = '';
+        conversionValue.value = '';
         out.textContent = '0';
         msg.textContent = '';
         categorySelect.value = '';
@@ -1438,6 +1485,316 @@ categorySelect.addEventListener('change', () => {
   exp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } });
   modeSelect.addEventListener('change', () => setMode(modeSelect.value));
   setMode(mode);
+
+  function showModeMessage(text, error = false) {
+    msg.className = error ? 'err' : '';
+    msg.textContent = text;
+  }
+
+  function integerGcd(a, b) {
+    a = a < 0n ? -a : a;
+    b = b < 0n ? -b : b;
+    while (b !== 0n) [a, b] = [b, a % b];
+    return a || 1n;
+  }
+
+  function parseFraction(value) {
+    const text = value.trim();
+    if (!text) throw new Error('Enter a fraction or decimal');
+    if (/^[+-]?\d+\s*\/\s*[+-]?\d+$/.test(text)) {
+      const parts = text.split('/');
+      const denominator = BigInt(parts[1].trim());
+      if (denominator === 0n) throw new Error('A fraction denominator cannot be zero');
+      return { numerator: BigInt(parts[0].trim()), denominator };
+    }
+    if (/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(text)) {
+      const decimal = Decimal.fromString(text);
+      const denominator = decimal.exp < 0n ? 10n ** (-decimal.exp) : 1n;
+      return { numerator: decimal.m, denominator };
+    }
+    throw new Error('Use a fraction such as 1/2 or a decimal');
+  }
+
+  function reduceFraction(fraction) {
+    let numerator = fraction.numerator;
+    let denominator = fraction.denominator;
+    if (denominator < 0n) {
+      numerator = -numerator;
+      denominator = -denominator;
+    }
+    const divisor = integerGcd(numerator, denominator);
+    return { numerator: numerator / divisor, denominator: denominator / divisor };
+  }
+
+  function fractionText(fraction) {
+    const reduced = reduceFraction(fraction);
+    return reduced.denominator === 1n
+      ? reduced.numerator.toString()
+      : `${reduced.numerator}/${reduced.denominator}`;
+  }
+
+  function calculateFraction() {
+    try {
+      const a = parseFraction($('fractionA').value);
+      const b = parseFraction($('fractionB').value);
+      const operator = $('fractionOperator').value;
+      let result;
+      if (operator === '+') result = { numerator: a.numerator * b.denominator + b.numerator * a.denominator, denominator: a.denominator * b.denominator };
+      if (operator === '-') result = { numerator: a.numerator * b.denominator - b.numerator * a.denominator, denominator: a.denominator * b.denominator };
+      if (operator === '*') result = { numerator: a.numerator * b.numerator, denominator: a.denominator * b.denominator };
+      if (operator === '/') {
+        if (b.numerator === 0n) throw new Error('Cannot divide by a zero fraction');
+        result = { numerator: a.numerator * b.denominator, denominator: a.denominator * b.numerator };
+      }
+      const reduced = reduceFraction(result);
+      const decimal = Number(reduced.numerator) / Number(reduced.denominator);
+      const fractionResult = fractionText(reduced);
+      const decimalText = Number.isFinite(decimal) ? String(decimal) : 'out of range';
+      out.classList.remove('stats-out');
+      out.classList.add('fraction-out');
+      const primary = document.createElement('span');
+      primary.className = 'fraction-primary';
+      primary.textContent = fractionResult;
+      const secondary = document.createElement('span');
+      secondary.className = 'fraction-secondary';
+      secondary.textContent = decimalText;
+      out.replaceChildren(primary, secondary);
+      showModeMessage('');
+      addHistory(`${$('fractionA').value} ${operator} ${$('fractionB').value}`, fractionResult, fractionResult);
+    } catch (error) {
+      out.textContent = '';
+      showModeMessage(error.message, true);
+    }
+  }
+
+  function convertDecimalToFraction() {
+    try {
+      const fraction = parseFraction($('fractionA').value);
+      const reduced = reduceFraction(fraction);
+      out.textContent = fractionText(reduced);
+      out.className = '';
+      showModeMessage('');
+      addHistory($('fractionA').value, fractionText(reduced), fractionText(reduced));
+    } catch (error) {
+      out.textContent = '';
+      showModeMessage(error.message, true);
+    }
+  }
+
+  function updateFractionMode() {
+    const operation = $('fractionOperator').value;
+    const converting = operation === 'convert';
+    $('fractionB').hidden = converting;
+    $('fractionArithmetic').classList.toggle('convert-layout', converting);
+    $('fractionCalculate').textContent = converting ? 'Convert' : 'Calculate';
+  }
+
+  function calculateFractionMode() {
+    const operation = $('fractionOperator').value;
+    if (!operation) {
+      showModeMessage('Choose an operation', true);
+      return;
+    }
+    if (operation === 'convert') convertDecimalToFraction();
+    else calculateFraction();
+  }
+
+  function programmerValue(text, base) {
+    const pattern = base === 2 ? /^[01]+$/ : base === 16 ? /^[0-9a-f]+$/i : /^\d+$/;
+    if (!pattern.test(text.trim())) throw new Error(`Invalid digit for base ${base}`);
+    return BigInt(`0${base === 16 ? 'x' : base === 2 ? 'b' : ''}${text.trim()}`);
+  }
+
+  function calculateProgrammer() {
+    try {
+      if (!$('programmerOperation').value) throw new Error('Choose an operation');
+      if (!$('programmerBase').value) throw new Error('Choose an input base');
+      const base = Number($('programmerBase').value);
+      let value = programmerValue($('programmerInput').value, base);
+      const operation = $('programmerOperation').value;
+      if (operation !== 'none') {
+        const operand = programmerValue($('programmerOperand').value, base);
+        if (operation === 'and') value &= operand;
+        if (operation === 'or') value |= operand;
+        if (operation === 'xor') value ^= operand;
+      }
+      out.textContent = `Decimal: ${value.toString()}\nBinary: ${value.toString(2)}\nHexadecimal: ${value.toString(16).toUpperCase()}`;
+      out.classList.add('stats-out');
+      showModeMessage('');
+      addHistory(`${$('programmerInput').value} ${operation}`, value.toString(), `Decimal: ${value.toString()}, Binary: ${value.toString(2)}, Hexadecimal: ${value.toString(16).toUpperCase()}`);
+    } catch (error) {
+      out.textContent = '';
+      showModeMessage(error.message, true);
+    }
+  }
+
+  function updateProgrammerOperation() {
+    const operand = $('programmerOperand');
+    const operation = $('programmerOperation').value;
+    const converting = operation === 'none';
+    operand.hidden = converting;
+    $('programmerOperationRow').classList.toggle('one-column', converting);
+    $('programmerCalculate').textContent = converting ? 'Convert' : 'Calculate';
+  }
+
+  function parseComplex(value) {
+    let text = value.replace(/\s+/g, '').toLowerCase();
+    while (text.startsWith('(') && text.endsWith(')')) {
+      let depth = 0;
+      let wrapsWholeValue = false;
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === '(') depth++;
+        if (text[i] === ')') depth--;
+        if (depth === 0 && i === text.length - 1) wrapsWholeValue = true;
+        if (depth === 0 && i < text.length - 1) break;
+      }
+      if (!wrapsWholeValue) break;
+      text = text.slice(1, -1);
+    }
+
+    const number = '[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)';
+    let match = new RegExp(`^(${number})([+-])((?:\\d+(?:\\.\\d*)?|\\.\\d+)?)i$`).exec(text);
+    if (match) {
+      return { real: Number(match[1]), imaginary: Number(match[2] + (match[3] || '1')) };
+    }
+    match = new RegExp(`^(${number})i([+-])(${number.slice(3)})?$`).exec(text);
+    if (match) {
+      return { real: 0, imaginary: Number(match[1].replace(/i$/, '')) };
+    }
+    if (/^([+-]?)(?:i)$/.test(text)) {
+      return { real: 0, imaginary: text.startsWith('-') ? -1 : 1 };
+    }
+    match = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)?)i$/.exec(text);
+    if (match) {
+      const coefficient = text.endsWith('-i') ? '-1' : text.endsWith('+i') ? '1' : (match[1] || '1');
+      return { real: 0, imaginary: Number(coefficient) };
+    }
+    match = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))$/.exec(text);
+    if (match) return { real: Number(match[1]), imaginary: 0 };
+    throw new Error('Use complex values such as 1+2i or 3-i');
+  }
+
+  function calculateComplex() {
+    try {
+      const expression = $('complexInput').value.replace(/\s+/g, '').replace(/−/g, '-');
+      if (!expression) throw new Error('Enter a complex expression');
+
+      try {
+        const standalone = parseComplex(expression);
+        const real = Number(standalone.real.toFixed(12));
+        const imaginary = Number(standalone.imaginary.toFixed(12));
+        if (imaginary === 0) out.textContent = real.toString();
+        else if (real === 0) {
+          if (imaginary === 1) out.textContent = 'i';
+          else if (imaginary === -1) out.textContent = '-i';
+          else out.textContent = `${imaginary < 0 ? '-' : ''}${Math.abs(imaginary)}i`;
+        }
+        else {
+          const imaginaryPart = imaginary === 1 ? 'i' : imaginary === -1 ? '-i' : `${Math.abs(imaginary)}i`;
+          out.textContent = `${real}${imaginary < 0 ? ' - ' : ' + '}${imaginaryPart}`;
+        }
+        showModeMessage('');
+        addHistory(expression, out.textContent, out.textContent);
+        return;
+      } catch (_) {}
+
+      let split = null;
+      let depth = 0;
+      for (let i = 0; i < expression.length; i++) {
+        if (expression[i] === '(') depth++;
+        else if (expression[i] === ')') depth--;
+        else if (depth === 0 && /^[+*\/-]$/.test(expression[i])) {
+          const leftText = expression.slice(0, i);
+          const rightText = expression.slice(i + 1);
+          try {
+            split = { left: parseComplex(leftText), right: parseComplex(rightText), operator: expression[i] };
+            break;
+          } catch (_) {}
+        }
+      }
+      if (!split) throw new Error('Enter two complex values and an operator');
+      const left = split.left;
+      const right = split.right;
+      let real, imaginary;
+      if (split.operator === '+') {
+        real = left.real + right.real; imaginary = left.imaginary + right.imaginary;
+      } else if (split.operator === '-') {
+        real = left.real - right.real; imaginary = left.imaginary - right.imaginary;
+      } else if (split.operator === '*') {
+        real = left.real * right.real - left.imaginary * right.imaginary;
+        imaginary = left.real * right.imaginary + left.imaginary * right.real;
+      } else {
+        const denominator = right.real ** 2 + right.imaginary ** 2;
+        if (denominator === 0) throw new Error('Cannot divide by zero complex value');
+        real = (left.real * right.real + left.imaginary * right.imaginary) / denominator;
+        imaginary = (left.imaginary * right.real - left.real * right.imaginary) / denominator;
+      }
+      const realText = Number(real.toFixed(12));
+      const imaginaryText = Number(imaginary.toFixed(12));
+      let result;
+      if (imaginaryText === 0) {
+        result = realText.toString();
+      } else if (realText === 0) {
+        if (imaginaryText === 1) result = 'i';
+        else if (imaginaryText === -1) result = '-i';
+        else result = `${imaginaryText < 0 ? '-' : ''}${Math.abs(imaginaryText)}i`;
+      } else {
+        const imaginaryPart = imaginaryText === 1 ? 'i' : imaginaryText === -1 ? '-i' : `${Math.abs(imaginaryText)}i`;
+        result = `${realText}${imaginaryText < 0 ? ' - ' : ' + '}${imaginaryPart}`;
+      }
+      out.textContent = result;
+      showModeMessage('');
+      addHistory(expression, result, result);
+    } catch (error) {
+      out.textContent = '';
+      showModeMessage(error.message, true);
+    }
+  }
+
+  function calculateFinancial() {
+    const principalText = $('financialPrincipal').value.trim();
+    const rateText = $('financialRate').value.trim();
+    const yearsText = $('financialYears').value.trim();
+    const frequencyText = $('financialFrequency').value.trim();
+    if (!principalText || !rateText || !yearsText || !frequencyText) {
+      showModeMessage('Enter all financial values', true);
+      return;
+    }
+    const principal = Number(principalText);
+    const rate = Number(rateText) / 100;
+    const years = Number(yearsText);
+    const frequency = Number(frequencyText);
+    if (![principal, rate, years, frequency].every(Number.isFinite) || principal < 0 || rate < 0 || years < 0 || frequency <= 0) {
+      showModeMessage('Enter valid non-negative financial values', true);
+      return;
+    }
+    const result = principal * (1 + rate / frequency) ** (frequency * years);
+    out.textContent = result.toFixed(2);
+    showModeMessage(`Future value after ${years} years`);
+    addHistory(`Financial: P=${principalText}, r=${rateText}%, t=${yearsText}, n=${frequencyText}`, out.textContent, out.textContent);
+  }
+
+  $('fractionCalculate').addEventListener('click', calculateFractionMode);
+  $('fractionOperator').addEventListener('change', updateFractionMode);
+  updateFractionMode();
+  $('programmerCalculate').addEventListener('click', calculateProgrammer);
+  $('programmerOperation').addEventListener('change', updateProgrammerOperation);
+  updateProgrammerOperation();
+  $('programmerBase').addEventListener('change', () => {
+    const placeholder = $('programmerBase').querySelector('option[value=""]');
+    if ($('programmerBase').value && placeholder) placeholder.disabled = true;
+  });
+  $('complexCalculate').addEventListener('click', calculateComplex);
+  $('financialCalculate').addEventListener('click', calculateFinancial);
+
+  ['financialPrincipal', 'financialRate', 'financialYears', 'financialFrequency'].forEach(id => {
+    const input = $(id);
+    input.addEventListener('input', () => {
+      if (input.value !== '' && Number(input.value) < 0) {
+        input.value = '0';
+      }
+    });
+  });
 
   /* background: particles.js */
   function bg() {

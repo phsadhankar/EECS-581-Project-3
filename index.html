@@ -33,7 +33,7 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧮%3C/text%3E%3C/svg%3E"
     />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20261122m" />
   </head>
   <body>
     <div id="bg" aria-hidden="true"></div>
@@ -45,6 +45,9 @@
           <option value="scientific">Scientific</option>
           <option value="financial">Financial</option>
           <option value="conversion">Conversion</option>
+          <option value="fraction">Fraction</option>
+          <option value="programmer">Programmer</option>
+          <option value="complex">Complex</option>
         </select>
       </label>
 
@@ -63,9 +66,7 @@
       <div id="msg" aria-live="polite"></div>
 
       <div id="converterPanel" hidden="">
-
-        <label for="conversionCategory">Conversion Type:</label>
-        <select id="conversionCategory">
+        <select id="conversionCategory" aria-label="Conversion category">
           <option value="">Select a category</option>
           <option value="length">Length</option>
           <option value="mass">Mass / Weight</option>
@@ -73,6 +74,8 @@
           <option value="temperature">Temperature</option>
           <option value="currency">Currency</option>
         </select>
+
+        <input id="conversionValue" type="number" step="any" placeholder="Value" aria-label="Value to convert">
 
         <div id="conversionControls" hidden>
 
@@ -82,7 +85,66 @@
           <label for="toUnit">To:</label>
           <select id="toUnit"></select>
         </div>
+        <button id="conversionCalculate" type="button">Calculate</button>
       </div>
+
+        <section id="financialPanel" class="mode-panel" hidden>
+          <div class="financial-field">
+            <label for="financialPrincipal">Principal</label>
+            <input id="financialPrincipal" type="number" min="0" step="any" placeholder="1000">
+          </div>
+          <div class="financial-field">
+            <label for="financialRate">Annual rate (%)</label>
+            <input id="financialRate" type="number" min="0" step="any" placeholder="5 (%)">
+          </div>
+          <div class="financial-field">
+            <label for="financialYears">Years</label>
+            <input id="financialYears" type="number" min="0" step="any" placeholder="2">
+          </div>
+          <div class="financial-field">
+            <label for="financialFrequency">Compounds/year</label>
+            <input id="financialFrequency" type="number" min="1" step="1" placeholder="12">
+          </div>
+          <button id="financialCalculate" type="button">Calculate</button>
+        </section>
+
+        <section id="fractionPanel" class="mode-panel" hidden>
+          <div id="fractionArithmetic" class="fraction-arithmetic">
+            <input id="fractionA" aria-label="First fraction" placeholder="1/2">
+            <select id="fractionOperator" aria-label="Fraction operation">
+              <option value="" selected disabled>Operation</option>
+              <option value="+">+</option><option value="-">−</option>
+              <option value="*">×</option><option value="/">÷</option>
+              <option value="convert">Convert</option>
+            </select>
+            <input id="fractionB" aria-label="Second fraction" placeholder="1/3">
+          </div>
+          <button id="fractionCalculate" type="button">Calculate</button>
+        </section>
+
+        <section id="programmerPanel" class="mode-panel" hidden>
+          <select id="programmerBase" aria-label="Input base">
+            <option value="" selected disabled>Base</option>
+            <option value="10">Decimal</option>
+            <option value="2">Binary</option>
+            <option value="16">Hexadecimal</option>
+          </select>
+          <div id="programmerOperationRow" class="programmer-operation-row">
+            <input id="programmerInput" aria-label="Programmer first value" placeholder="1010">
+            <select id="programmerOperation" aria-label="Bitwise operation">
+              <option value="" selected disabled>Operation</option>
+              <option value="none">Convert</option><option value="and">AND</option>
+              <option value="or">OR</option><option value="xor">XOR</option>
+            </select>
+            <input id="programmerOperand" aria-label="Bitwise operand" placeholder="1100" hidden>
+          </div>
+          <button id="programmerCalculate" type="button">Calculate</button>
+        </section>
+
+        <section id="complexPanel" class="mode-panel" hidden>
+          <input id="complexInput" aria-label="Complex expression" placeholder="(1+2i)+(3-i)">
+          <button id="complexCalculate" type="button">Calculate</button>
+        </section>
 
       <div class="keys sci">
         <button data-k="sin(">sin</button>
@@ -102,7 +164,7 @@
         <button id="FuncToggle" class="op">func</button>  <!-- Func Button -->
       </div>
 
-      <div class="keys">
+      <div id="basicKeys" class="keys">
         <button data-a="clear" class="op">AC</button>
         <button data-a="back" class="op" aria-label="Delete">⌫</button>
         <button
@@ -205,7 +267,7 @@
 
     <noscript>This calculator needs JavaScript.</noscript>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/particles.js/2.0.0/particles.min.js"></script>
-    <script src="./functions.js"></script>
-    <script src="./script.js"></script>
+    <script src="./functions.js?v=20261122m"></script>
+    <script src="./script.js?v=20261122m"></script>
   </body>
 </html>
