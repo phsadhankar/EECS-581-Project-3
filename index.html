@@ -65,6 +65,12 @@
         />
       </div>
 
+      <!-- Requirement 12: Expression undo and redo -->
+      <div id="editControls" class="edit-controls">
+        <button id="undoEdit" type="button" disabled>↶ Undo</button>
+        <button id="redoEdit" type="button" disabled>↷ Redo</button>
+      </div>
+
       <div id="out" aria-live="polite">0</div>
       <div id="msg" aria-live="polite"></div>
 
@@ -225,8 +231,7 @@
         <button data-k=")">)</button>
         <button data-k="abs(">abs</button>
         <button data-k="e">e</button>
-        <button data-k="Ans" class="op">Ans</button>
-        <!-- Requirement 03: Ans button -->
+        <button data-k="Ans" class="op">Ans</button>    <!-- Requirement 03: Ans button -->
         <button data-a="converter" class="op">unit</button>
         <button data-a="tolerance" class="op">tol</button>
         <button id="FuncToggle" class="op">func</button>  <!-- Func Button -->
@@ -341,6 +346,20 @@
           <div id="graphCompareView" class="graph-compare-view"></div>
         </section>
       </section>
+      
+      <!-- Requirement 21: Favorites saved from calculation history -->
+      <details id="favoritesPanel" class="history-panel">
+        <summary>Favorite calculations</summary>
+        <div class="favorite-save">
+          <input id="favoriteName" type="text" maxlength="80"
+            placeholder="Favorite name (e.g. Simple sum)"
+            aria-label="Favorite name">
+          <button id="saveFavorite" type="button">Save current</button>
+        </div>
+        <p id="favoriteMessage" role="status" aria-live="polite"></p>
+        <p id="favoritesEmpty">No favorites saved yet.</p>
+        <ol id="favoritesList"></ol>
+      </details>
 
       <!-- Requirement 03: Saved calculation history -->
       <details id="historyPanel" class="history-panel">
@@ -408,7 +427,7 @@
     <noscript>This calculator needs JavaScript.</noscript>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/particles.js/2.0.0/particles.min.js"></script>
     <script src="./functions.js?v=20261122o"></script>
-    <<script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/all.min.js"></script>
     <script src="./script.js?v=20261122o"></script>
     <script src="./graph.js"></script>
   </body>

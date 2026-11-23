@@ -1819,6 +1819,178 @@ categorySelect.addEventListener('change', () => {
   let deg = false, fresh = false, last = '';
   let mode = 'basic';
 
+  const undoEdits = [], redoEdits = [];   // Requirement 12: Stores previous versions/undoes expressions.
+  const EDIT_LIMIT = 100;                 // Requirement 12: Maximum number of edits the calculator remembers.
+  let recordedExpression = exp.value;     // Requirement 12: Keeps track of the most recently recorded expression.
+
+  function updateEditButtons()
+  {
+    $( 'undoEdit' ).disabled = undoEdits.length === 0;
+    $( 'redoEdit' ).disabled = redoEdits.length === 0;
+  }
+
+  function recordExpressionEdit()
+  {
+    if ( exp.value === recordedExpression )
+      return;
+
+    undoEdits.push(recordedExpression);
+
+    if ( undoEdits.length > EDIT_LIMIT )
+      undoEdits.shift();
+    
+    recordedExpression = exp.value;
+    redoEdits.length = 0;
+    updateEditButtons();
+  }
+
+  function restoreExpression( value )
+  {
+    exp.value = value;
+    recordedExpression = value;
+    fresh = false;
+
+    exp.focus();
+    exp.setSelectionRange( value.length, value.length );
+    preview();
+    updateEditButtons();
+  }
+
+  function undoExpression()
+  {
+    if ( !undoEdits.length )
+      return;
+
+    redoEdits.push( recordedExpression );
+    restoreExpression( undoEdits.pop() );
+  }
+
+  function redoExpression()
+  {
+    if ( !redoEdits.length )
+      return;
+
+    undoEdits.push( recordedExpression );
+    restoreExpression( redoEdits.pop() );
+  }
+
+  $( 'undoEdit' ).addEventListener( 'click', undoExpression );
+  $( 'redoEdit' ).addEventListener( 'click', redoExpression );
+
+  const FAVORITES_KEY = 'calculator-favorites-v1';
+  let favorites = [];
+
+  try
+  {
+    const saved = JSON.parse( localStorage.getItem( FAVORITES_KEY ) || '[]' );
+    if ( Array.isArray( saved ) )
+      favorites = saved.filter( item => item && typeof item.name === 'string' 
+      && typeof item.expression === 'string' ).slice( 0, 100 );
+  }
+  catch (_) { favorites = []; }
+
+  function persistFavorites()
+  {
+    try 
+    {
+      localStorage.setItem( FAVORITES_KEY, JSON.stringify( favorites ) );
+      return true;
+    }
+    catch (_)
+    {
+      $( 'favoriteMessage' ).textContent = 'Browser storage unavailable; favorites may not persist.';
+      return false;
+    }
+  }
+
+  function renderFavorites()
+  {
+    const list = $( 'favoritesList' );
+    list.replaceChildren();
+    $( 'favoritesEmpty' ).hidden = favorites.length !== 0;
+
+    favorites.forEach( ( item, index ) => 
+      {
+        const li = document.createElement( 'li' );
+        li.className = 'favorite-entry';
+
+        const recall = document.createElement( 'button' );
+        recall.type = 'button';
+        recall.className = 'history-entry';
+        recall.textContent = item.name + ': ' + item.expression;
+        recall.title = 'Restore expression without calculating';
+
+        recall.addEventListener( 'click', () => 
+          {
+            if ( expressionField.hidden ) setMode( 'scientific' );
+            exp.value = item.expression;
+            recordExpressionEdit();
+            fresh = false;
+            preview();
+            exp.focus();
+            $( 'favoriteMessage' ).textContent = 'Restored ' + item.name;
+          } );
+
+      const remove = document.createElement( 'button' );
+      remove.type = 'button';
+      remove.className = 'favorite-remove';
+      remove.textContent = 'Delete';
+      remove.setAttribute( 'aria-label', 'Delete ' + item.name );
+
+      remove.addEventListener( 'click', () => 
+        {
+          favorites.splice( index, 1 );
+          persistFavorites();
+          renderFavorites();
+          $( 'favoriteMessage' ).textContent = 'Favorite deleted.';
+        } );
+
+      li.append(recall, remove);
+      list.append(li);
+    } );
+  }
+
+  $( 'saveFavorite' ).addEventListener( 'click', () => 
+    {
+      const name = $( 'favoriteName' ).value.trim();
+      const expression = exp.value.trim();
+
+      if ( !name || !expression )
+      {
+        $('favoriteMessage').textContent =
+          'Enter a name and an expression first.';
+        return;
+      }
+
+      if ( favorites.some( item => item.name.toLowerCase() === name.toLowerCase() ) )
+      {
+        $( 'favoriteMessage' ).textContent = 'That name is already used. Choose a different name.';
+        return;
+      }
+
+      if ( favorites.some( item => item.expression === expression ) )
+      {
+        $( 'favoriteMessage' ).textContent = 'That expression is already saved. No duplicate added.';
+        return;
+      }
+
+      if ( favorites.length >= 100 )
+      {
+        $( 'favoriteMessage' ).textContent = 'Maximum of 100 favorites reached.';
+        return;
+      }
+
+      favorites.push({ name, expression });
+      persistFavorites();
+      renderFavorites();
+
+      $( 'favoriteName' ).value = '';
+      $( 'favoriteMessage' ).textContent = 'Saved ' + name;
+    } );
+
+  renderFavorites();
+
+
   const modeNames = {
     basic: 'Basic calculation mode',
     scientific: 'Scientific calculation mode',
@@ -1970,6 +2142,7 @@ categorySelect.addEventListener('change', () => {
           modeSelect.dispatchEvent(new Event('change'));
         }
         exp.value = item.expression;
+        recordExpressionEdit();
         fresh = false;
         preview();
         exp.focus();
@@ -2307,12 +2480,13 @@ categorySelect.addEventListener('change', () => {
     const caret = exp.selectionStart + caretOffset;
     exp.setRangeText(t, exp.selectionStart, exp.selectionEnd, 'end');
     exp.setSelectionRange(caret, caret);
+    recordExpressionEdit();
     preview();
   }
   function back() {
     fresh = false;
     if (exp.selectionStart === exp.selectionEnd && exp.selectionStart > 0) exp.setSelectionRange(exp.selectionStart - 1, exp.selectionEnd);
-    exp.setRangeText('', exp.selectionStart, exp.selectionEnd, 'end'); preview();
+    exp.setRangeText('', exp.selectionStart, exp.selectionEnd, 'end'); recordExpressionEdit(); preview();
   }
   function setAngle() {
     deg = !deg; angleBtn.textContent = deg ? 'Deg' : 'Rad';
@@ -2348,7 +2522,7 @@ categorySelect.addEventListener('change', () => {
         conversionControls.hidden = true;
         closeUnitConverter();
       } else {
-        fresh = false; exp.value = ''; preview();
+        fresh = false; exp.value = ''; recordExpressionEdit(); preview();
       }
     }
     else if (b.dataset.a === 'back') back();
@@ -2356,13 +2530,34 @@ categorySelect.addEventListener('change', () => {
     else if (b.dataset.a === 'eq') commit();
   });
   exp.addEventListener('input', () => { 
+    recordExpressionEdit();
     fresh = false; 
     if (!converterPanel.hidden) {
       updateConversionResult();
     } else {
     preview();
   }});
-  exp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } });
+  exp.addEventListener( 'keydown', e =>
+  { 
+    const mod = e.ctrlKey || e.metaKey;
+
+    if ( mod && e.key.toLowerCase() === 'z' )
+    {
+      e.preventDefault();
+      if ( e.shiftKey ) redoExpression();
+      else undoExpression();
+    }
+    else if ( mod && e.key.toLowerCase() === 'y' )
+    {
+      e.preventDefault();
+      redoExpression();
+    }
+    else if ( e.key === 'Enter' )
+    {
+      e.preventDefault();
+      commit();
+    }
+  } );
   modeSelect.addEventListener('change', () => { converterPanel.hidden = true; tolerancePanel.hidden = true; setMode(modeSelect.value)});
   // Requirement 09: Show the selected financial calculation
   financialType.addEventListener('change', () => {

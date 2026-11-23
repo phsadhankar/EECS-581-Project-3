@@ -1067,3 +1067,72 @@ body.graph-open { align-items: flex-start; }
   color: var(--mute);
   font-size: 14px;
 }
+
+
+/* R12: expression editing controls */
+.edit-controls {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.edit-controls button {
+  flex: 1;
+  min-height: 34px;
+  font-size: 13px;
+  background: var(--soft);
+  color: var(--accent);
+}
+
+.edit-controls button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+/* R21: saved favorite calculations */
+.favorite-save {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.favorite-save input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.favorite-save button,
+.favorite-remove {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--soft);
+  color: var(--accent);
+}
+
+.favorite-entry {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.favorite-entry .history-entry {
+  flex: 1;
+  min-width: 0;
+}
+
+#favoritesList {
+  padding-left: 22px;
+}
+
+#favoriteMessage,
+#favoritesEmpty {
+  font-size: 13px;
+  color: var(--mute);
+}
