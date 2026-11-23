@@ -1335,19 +1335,14 @@ categorySelect.addEventListener('change', () => {
   const exp = $('expr'), out = $('out'), msg = $('msg'), angleBtn = $('angle');
   const modeSelect = $('modeSelect');
   const sciKeys = document.querySelector('.keys.sci');
-<<<<<<< HEAD
   const basicKeys = $('basicKeys');
-  const financialPanel = $('financialPanel');
-  const fractionPanel = $('fractionPanel');
-  const programmerPanel = $('programmerPanel');
-  const complexPanel = $('complexPanel');
-=======
-  // Requirement 09: Financial calculation elements
   const financialPanel = $('financialPanel');
   const financialType = $('financialType');
   const compoundInterestPanel = $('compoundInterestPanel');
   const loanPaymentPanel = $('loanPaymentPanel');
->>>>>>> 408bc0f4b12610ca1ef87aff0aea9e4fe4920059
+  const fractionPanel = $('fractionPanel');
+  const programmerPanel = $('programmerPanel');
+  const complexPanel = $('complexPanel');
   let deg = false, fresh = false, last = '';
   let mode = 'basic';
 
@@ -1365,12 +1360,12 @@ categorySelect.addEventListener('change', () => {
     if (!modeNames[nextMode]) return;
     mode = nextMode;
     modeSelect.value = mode;
-<<<<<<< HEAD
     sciKeys.hidden = mode !== 'scientific';
     basicKeys.hidden = mode !== 'basic' && mode !== 'scientific';
     exp.hidden = mode === 'conversion' || mode === 'fraction' || mode === 'programmer' || mode === 'complex' || mode === 'financial';
     converterPanel.hidden = mode !== 'conversion';
     financialPanel.hidden = mode !== 'financial';
+    tolerancePanel.hidden = true;
     fractionPanel.hidden = mode !== 'fraction';
     programmerPanel.hidden = mode !== 'programmer';
     complexPanel.hidden = mode !== 'complex';
@@ -1385,14 +1380,6 @@ categorySelect.addEventListener('change', () => {
       msg.className = '';
     } else {
       preview();
-=======
-    sciKeys.hidden = mode === 'basic';
-    // Show financial options only in Financial mode
-    financialPanel.hidden = mode !== 'financial';
-    // Hide the unit converter when switching modes
-    if (mode === 'financial') {
-      converterPanel.hidden = true;
->>>>>>> 408bc0f4b12610ca1ef87aff0aea9e4fe4920059
     }
   }
 
@@ -1708,6 +1695,8 @@ categorySelect.addEventListener('change', () => {
   financialType.addEventListener('change', () => {
     compoundInterestPanel.hidden = financialType.value !== 'compound';
     loanPaymentPanel.hidden = financialType.value !== 'loan';
+    const placeholder = financialType.querySelector('option[value=""]');
+    if (financialType.value && placeholder) placeholder.disabled = true;
 
     out.textContent = '0';
     msg.textContent = '';
@@ -2082,29 +2071,6 @@ categorySelect.addEventListener('change', () => {
     }
   }
 
-  function calculateFinancial() {
-    const principalText = $('financialPrincipal').value.trim();
-    const rateText = $('financialRate').value.trim();
-    const yearsText = $('financialYears').value.trim();
-    const frequencyText = $('financialFrequency').value.trim();
-    if (!principalText || !rateText || !yearsText || !frequencyText) {
-      showModeMessage('Enter all financial values', true);
-      return;
-    }
-    const principal = Number(principalText);
-    const rate = Number(rateText) / 100;
-    const years = Number(yearsText);
-    const frequency = Number(frequencyText);
-    if (![principal, rate, years, frequency].every(Number.isFinite) || principal < 0 || rate < 0 || years < 0 || frequency <= 0) {
-      showModeMessage('Enter valid non-negative financial values', true);
-      return;
-    }
-    const result = principal * (1 + rate / frequency) ** (frequency * years);
-    out.textContent = result.toFixed(2);
-    showModeMessage(`Future value after ${years} years`);
-    addHistory(`Financial: P=${principalText}, r=${rateText}%, t=${yearsText}, n=${frequencyText}`, out.textContent, out.textContent);
-  }
-
   $('fractionCalculate').addEventListener('click', calculateFractionMode);
   $('fractionOperator').addEventListener('change', updateFractionMode);
   updateFractionMode();
@@ -2116,16 +2082,6 @@ categorySelect.addEventListener('change', () => {
     if ($('programmerBase').value && placeholder) placeholder.disabled = true;
   });
   $('complexCalculate').addEventListener('click', calculateComplex);
-  $('financialCalculate').addEventListener('click', calculateFinancial);
-
-  ['financialPrincipal', 'financialRate', 'financialYears', 'financialFrequency'].forEach(id => {
-    const input = $(id);
-    input.addEventListener('input', () => {
-      if (input.value !== '' && Number(input.value) < 0) {
-        input.value = '0';
-      }
-    });
-  });
 
   /* background: particles.js */
   function bg() {

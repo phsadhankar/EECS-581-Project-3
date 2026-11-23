@@ -33,7 +33,7 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧮%3C/text%3E%3C/svg%3E"
     />
-    <link rel="stylesheet" href="styles.css?v=20261122m" />
+    <link rel="stylesheet" href="styles.css?v=20261122o" />
   </head>
   <body>
     <div id="bg" aria-hidden="true"></div>
@@ -65,15 +65,10 @@
       <div id="out" aria-live="polite">0</div>
       <div id="msg" aria-live="polite"></div>
 
-<<<<<<< HEAD
-      <div id="converterPanel" hidden="">
-        <select id="conversionCategory" aria-label="Conversion category">
-=======
       <!-- Requirement 09: Financial calculations -->
       <div id="financialPanel" hidden>
-        <label for="financialType">Select Calculation:</label>
         <select id="financialType">
-          <option value="">Choose a calculation</option>
+          <option value="" selected disabled>Calculation</option>
           <option value="compound">Compound Interest</option>
           <option value="loan">Loan Payments</option>
         </select>
@@ -136,9 +131,7 @@
       </div>
 
       <div id="converterPanel" hidden="">
-        <label for="conversionCategory">Conversion Type:</label>
-        <select id="conversionCategory">
->>>>>>> 408bc0f4b12610ca1ef87aff0aea9e4fe4920059
+        <select id="conversionCategory" aria-label="Conversion category">
           <option value="">Select a category</option>
           <option value="length">Length</option>
           <option value="mass">Mass / Weight</option>
@@ -158,27 +151,6 @@
         </div>
         <button id="conversionCalculate" type="button">Calculate</button>
       </div>
-
-<<<<<<< HEAD
-        <section id="financialPanel" class="mode-panel" hidden>
-          <div class="financial-field">
-            <label for="financialPrincipal">Principal</label>
-            <input id="financialPrincipal" type="number" min="0" step="any" placeholder="1000">
-          </div>
-          <div class="financial-field">
-            <label for="financialRate">Annual rate (%)</label>
-            <input id="financialRate" type="number" min="0" step="any" placeholder="5 (%)">
-          </div>
-          <div class="financial-field">
-            <label for="financialYears">Years</label>
-            <input id="financialYears" type="number" min="0" step="any" placeholder="2">
-          </div>
-          <div class="financial-field">
-            <label for="financialFrequency">Compounds/year</label>
-            <input id="financialFrequency" type="number" min="1" step="1" placeholder="12">
-          </div>
-          <button id="financialCalculate" type="button">Calculate</button>
-        </section>
 
         <section id="fractionPanel" class="mode-panel" hidden>
           <div id="fractionArithmetic" class="fraction-arithmetic">
@@ -217,7 +189,6 @@
           <input id="complexInput" aria-label="Complex expression" placeholder="(1+2i)+(3-i)">
           <button id="complexCalculate" type="button">Calculate</button>
         </section>
-=======
       <!-- Requirement 15: Tolerance calculator -->
       <div id="tolerancePanel" hidden>
 
@@ -236,9 +207,7 @@
         </select>
 
         <button type="button" id="calculateTolerance">Calculate</button>
-
       </div>
->>>>>>> 408bc0f4b12610ca1ef87aff0aea9e4fe4920059
 
       <div class="keys sci">
         <button data-k="sin(">sin</button>
@@ -435,13 +404,8 @@
 
     <noscript>This calculator needs JavaScript.</noscript>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/particles.js/2.0.0/particles.min.js"></script>
-<<<<<<< HEAD
-    <script src="./functions.js?v=20261122m"></script>
-    <script src="./script.js?v=20261122m"></script>
-=======
-    <script src="./functions.js"></script>
-    <script src="./script.js"></script>
+    <script src="./functions.js?v=20261122o"></script>
+    <script src="./script.js?v=20261122o"></script>
     <script src="./graph.js"></script>
->>>>>>> 408bc0f4b12610ca1ef87aff0aea9e4fe4920059
   </body>
 </html>
