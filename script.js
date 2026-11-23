@@ -195,7 +195,7 @@
       return Number(this.toString());
     }
 
-    toString() {
+    toString(plain = false) {
       if (this.m === 0n) return '0';
 
       let sign = this.m < 0n ? '-' : '';
@@ -204,20 +204,122 @@
       let decPos = s.length + exp;
 
       if (exp >= 0) {
-        if (exp <= 20) return sign + s + '0'.repeat(exp);
+        if (plain || exp <= 20) return sign + s + '0'.repeat(exp);
         let frac = s.slice(1);
         return `${sign}${s[0]}${frac ? '.' + frac : ''}e+${s.length - 1 + exp}`;
       }
 
       if (decPos > 0) {
         return sign + s.slice(0, decPos) + '.' + s.slice(decPos);
-      } else if (decPos >= -15) {
+      } else if (plain || decPos >= -15) {
         return sign + '0.' + '0'.repeat(-decPos) + s;
       } else {
         let frac = s.slice(1);
         return `${sign}${s[0]}${frac ? '.' + frac : ''}e${decPos - 1}`;
       }
     }
+  }
+
+  const MATRIX_ENTRY_LIMIT = 2500;
+  const MATRIX_PRODUCT_LIMIT = 125000;
+  const MATRIX_SQUARE_LIMIT = 32;
+  const MATRIX_FUNCTIONS = new Set(['matrix', 'transpose', 'det', 'inverse']);
+
+  class Matrix {
+    constructor(rows) {
+      this.rows = rows;
+      this.height = rows.length;
+      this.width = rows[0].length;
+    }
+
+    map(fn) {
+      return new Matrix(this.rows.map((row, i) => row.map((value, j) => fn(value, i, j))));
+    }
+
+    transpose() {
+      return new Matrix(this.rows[0].map((_, j) => this.rows.map(row => row[j])));
+    }
+
+    toString() {
+      return `matrix([${this.rows.map(row => `[${row.map(value => value.toString(true)).join(',')}]`).join(',')}])`;
+    }
+  }
+
+  function matrixOperation(op, a, b, fail) {
+    const aMatrix = a instanceof Matrix, bMatrix = b instanceof Matrix;
+    if (op === '+' || op === '-') {
+      if (!aMatrix || !bMatrix || a.height !== b.height || a.width !== b.width) {
+        fail('Matrix addition and subtraction require two matrices with identical dimensions');
+      }
+      return a.map((value, i, j) => op === '+' ? value.add(b.rows[i][j]) : value.sub(b.rows[i][j]));
+    }
+    if (op !== '*') fail(`Operator "${op}" is unsupported for matrices`);
+    if (!aMatrix) return b.map(value => a.mul(value));
+    if (!bMatrix) return a.map(value => value.mul(b));
+    if (a.width !== b.height) {
+      fail('Matrix multiplication requires the left column count to match the right row count');
+    }
+    if (a.height * b.width > MATRIX_ENTRY_LIMIT || a.height * b.width * a.width > MATRIX_PRODUCT_LIMIT) {
+      fail('Matrix product is too large');
+    }
+    const columns = b.transpose().rows;
+    return new Matrix(a.rows.map(row => columns.map(column =>
+      row.reduce((sum, value, k) => sum.add(value.mul(column[k])), new Decimal(0n))
+    )));
+  }
+
+  function eliminateMatrix(matrix, inverse, fail) {
+    const size = matrix.height;
+    const operation = inverse ? 'inverse' : 'det';
+    if (size !== matrix.width) fail(`${operation} requires a square matrix`);
+    if (size > MATRIX_SQUARE_LIMIT) fail(`${operation} supports matrices up to ${MATRIX_SQUARE_LIMIT} × ${MATRIX_SQUARE_LIMIT}`);
+
+    // Scale the entries to integers so fraction-free elimination can detect exact zero pivots.
+    const scale = matrix.rows.flat().reduce((min, value) =>
+      !value.isZero() && (min === null || value.exp < min) ? value.exp : min, null) ?? 0n;
+    const rows = matrix.rows.map((row, i) => {
+      const values = row.map(value => {
+        if (value.isZero()) return 0n;
+        const shift = value.exp - scale;
+        if (shift + BigInt(String(value.m).length) > 512n) {
+          fail(`${operation} exceeds the matrix calculation precision limit`);
+        }
+        return value.m * 10n ** shift;
+      });
+      if (inverse) {
+        for (let j = 0; j < size; j++) values.push(i === j ? 1n : 0n);
+      }
+      return values;
+    });
+
+    let previousPivot = 1n, sign = 1n;
+    for (let k = 0; k < size; k++) {
+      let pivotRow = k;
+      while (pivotRow < size && rows[pivotRow][k] === 0n) pivotRow++;
+      if (pivotRow === size) {
+        if (inverse) fail('Singular-matrix error; no inverse.');
+        return new Decimal(0n);
+      }
+      if (pivotRow !== k) {
+        [rows[k], rows[pivotRow]] = [rows[pivotRow], rows[k]];
+        sign = -sign;
+      }
+      const pivot = rows[k][k];
+      for (let i = inverse ? 0 : k + 1; i < size; i++) {
+        if (i === k) continue;
+        const factor = rows[i][k];
+        for (let j = inverse ? 0 : k + 1; j < rows[i].length; j++) {
+          if (j !== k) rows[i][j] = (pivot * rows[i][j] - factor * rows[k][j]) / previousPivot;
+        }
+        rows[i][k] = 0n;
+      }
+      previousPivot = pivot;
+    }
+    if (!inverse) return new Decimal(sign * previousPivot, scale * BigInt(size));
+    const denominator = new Decimal(previousPivot);
+    return new Matrix(rows.map(row => row.slice(size).map(value =>
+      new Decimal(value, -scale).div(denominator)
+    )));
   }
 
   const OPS = { '+': '+', '-': '-', '−': '-', '*': '*', '×': '*', '·': '*', '/': '/', '÷': '/', '^': '^', '(': '(', ')': ')', ',': ',', '[': '[', ']': ']' };
@@ -245,7 +347,7 @@
   }
 
   function parse(src, ans) {
-    const T = tokenize(src); let i = 0;
+    const T = tokenize(src); let i = 0, usesMatrix = false;
     const peek = () => T[i], next = () => T[i++];
     const isOp = (x, ...v) => x.k === 'op' && v.includes(x.v);
     const startsAtom = x => x.k === 'num' || x.k === 'id' || isOp(x, '(', '[');
@@ -285,11 +387,15 @@
                 throw new PErr( x.pos, x.len, 'No previous answer is available' );
               }
 
-            // Use the previous answer as a number
+            if (ans instanceof Matrix) {
+              usesMatrix = true;
+              return { t: 'matrixValue', v: ans };
+            }
             return { t: 'num', v: ans };
           }
         if (x.v in CONSTS) return { t: 'num', v: CONSTS[x.v], s: x.v === 'e' ? 'e' : 'π' };
         if (functionRegistry.has(x.v)) {
+          if (MATRIX_FUNCTIONS.has(x.v)) usesMatrix = true;
           if (!isOp(peek(), '(')) {
             throw new PErr(x.pos, x.len, `"${x.text}" needs parentheses, for example ${x.text}(1)`);
           }
@@ -299,13 +405,13 @@
           // Parse comma-separated arguments inside the function call
           if (!isOp(peek(), ')')) {
             if (isOp(peek(), ',')) {
-              throw new PErr(peek().pos, peek().len, 'Malformed dataset: missing value before ","');
+              throw new PErr(peek().pos, peek().len, 'Missing argument before ","');
             }
             args.push(expr());
             while (isOp(peek(), ',')) {
               const comma = next();
               if (isOp(peek(), ')') || isOp(peek(), ',')) {
-                throw new PErr(comma.pos, comma.len, 'Malformed dataset: missing value after ","');
+                throw new PErr(comma.pos, comma.len, 'Missing argument after ","');
               }
               args.push(expr());
             }
@@ -330,13 +436,13 @@
         const items = [];
         if (!isOp(peek(), ']')) {
           if (isOp(peek(), ',')) {
-            throw new PErr(peek().pos, peek().len, 'Malformed dataset: missing value before ","');
+            throw new PErr(peek().pos, peek().len, 'Missing value before "," in brackets');
           }
           items.push(expr());
           while (isOp(peek(), ',')) {
             const comma = next();
             if (isOp(peek(), ']') || isOp(peek(), ',')) {
-              throw new PErr(comma.pos, comma.len, 'Malformed dataset: missing value after ","');
+              throw new PErr(comma.pos, comma.len, 'Missing value after "," in brackets');
             }
             items.push(expr());
           }
@@ -365,6 +471,7 @@
           : `Unexpected "${x.text}"`;
       throw new PErr(x.pos, x.len, errMsg);
     }
+    ast.usesMatrix = usesMatrix;
     return ast;
   }
 
@@ -374,16 +481,55 @@
     const bad = (n, msg) => { throw new PErr(n.pos, n.t === 'call' ? n.f.length : 1, msg); };
     switch (n.t) {
       case 'num': return n.v;
-      case 'neg': return evaluate(n.x, deg).neg();
+      case 'matrixValue': return n.v;
+      case 'neg': {
+        const value = evaluate(n.x, deg);
+        return value instanceof Matrix ? value.map(entry => entry.neg()) : value.neg();
+      }
       case 'list': bad(n, 'Datasets "[...]" can only be used inside statistics functions');
       case 'bin': {
         const a = evaluate(n.l, deg), b = evaluate(n.r, deg);
+        if (a instanceof Matrix || b instanceof Matrix) {
+          return matrixOperation(n.op, a, b, message => bad(n, message));
+        }
         if (n.op === '+') return a.add(b); if (n.op === '-') return a.sub(b); if (n.op === '*') return a.mul(b);
         if (n.op === '/') { if (b.isZero()) bad(n, 'Division by zero'); return a.div(b); }
         try { return a.pow(b); } catch (e) { bad(n, e.message); }
         break;
       }
       case 'call': {
+        const scalar = arg => {
+          const value = evaluate(arg, deg);
+          if (value instanceof Matrix) bad(n, `${n.f} requires scalar values`);
+          return value;
+        };
+        if (n.f === 'matrix') {
+          const list = n.args[0];
+          if (n.args.length !== 1 || list.t !== 'list' || !list.items.length) {
+            bad(n, 'matrix requires a nonempty list of rows, for example matrix([[1,2],[3,4]])');
+          }
+          const width = list.items[0].items?.length;
+          if (!width || list.items.some(row => row.t !== 'list' || row.items.length !== width)) {
+            bad(n, 'Matrix rows must be nonempty bracketed lists with the same number of columns');
+          }
+          if (list.items.length * width > MATRIX_ENTRY_LIMIT) {
+            bad(n, `Matrices can contain at most ${MATRIX_ENTRY_LIMIT} entries`);
+          }
+          return new Matrix(list.items.map(row => row.items.map(entry => {
+            if (entry.t === 'list') bad(entry, 'Matrix entries must be scalar expressions');
+            const value = evaluate(entry, deg);
+            if (value instanceof Matrix) bad(n, 'Matrix entries must be scalar expressions');
+            return value;
+          })));
+        }
+        if (MATRIX_FUNCTIONS.has(n.f)) {
+          if (n.args.length !== 1) bad(n, `${n.f} requires one matrix argument`);
+          const value = evaluate(n.a, deg);
+          if (!(value instanceof Matrix)) bad(n, `${n.f} requires a matrix argument`);
+          if (n.f === 'transpose') return value.transpose();
+          return eliminateMatrix(value, n.f === 'inverse', message => bad(n, message));
+        }
+
         // Helper to validate and extract BigInt integers for number theory functions
         const toInteger = (dec, funcName) => {
           if (dec.exp < 0n) {
@@ -413,7 +559,7 @@
             bad(n, 'prime requires 1 argument, for example prime(17)');
           }
 
-          const val = toInteger(evaluate(n.args[0], deg), 'prime');
+          const val = toInteger(scalar(n.args[0]), 'prime');
 
           if (val > 10000000000000n) {
             bad(n, 'Value is too large for prime check');
@@ -454,7 +600,7 @@
             bad(n, 'fact requires 1 argument, for example fact(60)');
           }
 
-          const val = toInteger(evaluate(n.args[0], deg), 'fact');
+          const val = toInteger(scalar(n.args[0]), 'fact');
 
           if (val <= 0n) {
             bad(n, 'fact requires a positive integer');
@@ -509,8 +655,8 @@
             bad(n, 'gcd requires 2 arguments, for example gcd(12, 18)');
           }
 
-          let a = toInteger(evaluate(n.args[0], deg), 'gcd');
-          let b = toInteger(evaluate(n.args[1], deg), 'gcd');
+          let a = toInteger(scalar(n.args[0]), 'gcd');
+          let b = toInteger(scalar(n.args[1]), 'gcd');
 
           a = a < 0n ? -a : a;
           b = b < 0n ? -b : b;
@@ -530,8 +676,8 @@
             bad(n, 'lcm requires 2 arguments, for example lcm(12, 18)');
           }
 
-          let a = toInteger(evaluate(n.args[0], deg), 'lcm');
-          let b = toInteger(evaluate(n.args[1], deg), 'lcm');
+          let a = toInteger(scalar(n.args[0]), 'lcm');
+          let b = toInteger(scalar(n.args[1]), 'lcm');
 
           if (a === 0n || b === 0n) {
             return new Decimal(0n);
@@ -559,8 +705,8 @@
             bad(n, 'pinc requires 2 arguments: pinc(from, to), for example pinc(80, 100)');
           }
 
-          const fromVal = evaluate(n.args[0], deg);
-          const toVal = evaluate(n.args[1], deg);
+          const fromVal = scalar(n.args[0]);
+          const toVal = scalar(n.args[1]);
 
           if (fromVal.isZero()) {
             bad(n, 'Starting value cannot be zero for percent increase');
@@ -584,8 +730,8 @@
             bad(n, 'pdec requires 2 arguments: pdec(from, to), for example pdec(100, 80)');
           }
 
-          const fromVal = evaluate(n.args[0], deg);
-          const toVal = evaluate(n.args[1], deg);
+          const fromVal = scalar(n.args[0]);
+          const toVal = scalar(n.args[1]);
 
           if (fromVal.isZero()) {
             bad(n, 'Starting value cannot be zero for percent decrease');
@@ -609,8 +755,8 @@
             bad(n, 'pdiff requires 2 arguments: pdiff(a, b), for example pdiff(80, 100)');
           }
 
-          const valA = evaluate(n.args[0], deg);
-          const valB = evaluate(n.args[1], deg);
+          const valA = scalar(n.args[0]);
+          const valB = scalar(n.args[1]);
 
           // Formula: |valB - valA| / ((valA + valB) / 2) * 100
           const difference = valB.sub(valA).abs();
@@ -650,7 +796,7 @@
               if (item.t === 'list') {
                 bad(item, `Pass a single dataset to ${funcName}, for example ${funcName}(1, 2, 3) or ${funcName}([1, 2, 3])`);
               }
-              values.push(evaluate(item, deg));
+              values.push(scalar(item));
             }
             return values;
           };
@@ -823,7 +969,7 @@
         if (n.args.length !== 1) {
           bad(n, `${n.f} requires 1 argument`);
         }
-        const a = evaluate(n.a, deg);
+        const a = scalar(n.a);
         if (n.f === 'abs') return a.abs();
         if (n.f === 'sqrt') { if (a.isNegative()) bad(n, 'sqrt needs a value of 0 or more'); return a.sqrt(); }
         const v = a.toNumber();
@@ -843,14 +989,22 @@
     }
   }
   function run(src, deg, ans) {
+    let ast;
     try {
-      const v = evaluate(parse(src, ans), deg);
-      return { ok: true, value: v.toString(), display: v.display, note: v.note };
+      ast = parse(src, ans);
+      const answer = evaluate(ast, deg);
+      return { ok: true, answer, value: answer.toString(), display: answer.display, note: answer.note, usesMatrix: ast.usesMatrix };
+    } catch (e) {
+      if (e instanceof PErr) return { ok: false, err: e };
+      if (ast?.usesMatrix && (e instanceof RangeError || e.message === 'Result is not finite')) {
+        return { ok: false, err: new PErr(ast.pos ?? 0, 1, 'Matrix calculation exceeds the numerical range') };
+      }
+      throw e;
     }
-    catch (e) { if (e instanceof PErr) return { ok: false, err: e }; throw e; }
   }
   function openConverter() {
     converterPanel.hidden = false;
+    tolerancePanel.hidden = true;
     out.hidden = false;
     msg.hidden = false;
   }
@@ -861,6 +1015,28 @@
     msg.hidden = false;
     preview();
   }
+
+  function calculateTolerance() { // tolerance calculator, R15
+    const nominal = Number($('nominalValue').value);
+    const tolerance = Number($('toleranceValue').value);
+    const unit = $('toleranceUnit').value;
+    if (
+        $('nominalValue').value === '' ||
+        $('toleranceValue').value === '' ||
+        tolerance < 0
+    ) {
+        msg.textContent = 'Enter a nominal value and a non-negative tolerance.';
+        return;
+    }
+
+    msg.textContent = '';
+
+    const minimum = nominal - tolerance;
+    const maximum = nominal + tolerance;
+
+    out.textContent = `[${minimum.toFixed(1)}, ${maximum.toFixed(1)}] ${unit}`;
+  }
+  $('calculateTolerance').addEventListener('click', calculateTolerance);
 
   /* ---------- step by step ---------- */
   const SYM = { '+': '+', '-': '−', '*': '×', '/': '÷', '^': '^' };
@@ -916,8 +1092,16 @@
   }
   const stepsBox = $('steps'), stepList = $('stepList');
   function hideSteps() { stepsBox.hidden = true; stepsBox.open = false; stepList.replaceChildren(); }
-  function showSteps(src) {
+  function showSteps(src, usesMatrix) {
     hideSteps(); let st = [];
+    if (usesMatrix) {
+      const li = document.createElement('li');
+      li.textContent = 'Step-by-step solutions are unavailable for matrix expressions.';
+      stepList.append(li);
+      stepsBox.hidden = false;
+      stepsBox.open = true;
+      return;
+    }
     try { st = solve(src, deg, previousAnswer); } catch (e) { }
     if (!st.length) return;
     st.forEach((x, i) => {
@@ -932,6 +1116,7 @@
   /* ---------- interface ---------- */
   // Unit Converter elements
   const converterPanel = $('converterPanel');
+  const tolerancePanel = $('tolerancePanel');
   const categorySelect = $('conversionCategory');
   const conversionControls = $('conversionControls');
   const fromUnit = $('fromUnit');
@@ -1150,11 +1335,19 @@ categorySelect.addEventListener('change', () => {
   const exp = $('expr'), out = $('out'), msg = $('msg'), angleBtn = $('angle');
   const modeSelect = $('modeSelect');
   const sciKeys = document.querySelector('.keys.sci');
+<<<<<<< HEAD
   const basicKeys = $('basicKeys');
   const financialPanel = $('financialPanel');
   const fractionPanel = $('fractionPanel');
   const programmerPanel = $('programmerPanel');
   const complexPanel = $('complexPanel');
+=======
+  // Requirement 09: Financial calculation elements
+  const financialPanel = $('financialPanel');
+  const financialType = $('financialType');
+  const compoundInterestPanel = $('compoundInterestPanel');
+  const loanPaymentPanel = $('loanPaymentPanel');
+>>>>>>> 408bc0f4b12610ca1ef87aff0aea9e4fe4920059
   let deg = false, fresh = false, last = '';
   let mode = 'basic';
 
@@ -1172,6 +1365,7 @@ categorySelect.addEventListener('change', () => {
     if (!modeNames[nextMode]) return;
     mode = nextMode;
     modeSelect.value = mode;
+<<<<<<< HEAD
     sciKeys.hidden = mode !== 'scientific';
     basicKeys.hidden = mode !== 'basic' && mode !== 'scientific';
     exp.hidden = mode === 'conversion' || mode === 'fraction' || mode === 'programmer' || mode === 'complex' || mode === 'financial';
@@ -1191,6 +1385,14 @@ categorySelect.addEventListener('change', () => {
       msg.className = '';
     } else {
       preview();
+=======
+    sciKeys.hidden = mode === 'basic';
+    // Show financial options only in Financial mode
+    financialPanel.hidden = mode !== 'financial';
+    // Hide the unit converter when switching modes
+    if (mode === 'financial') {
+      converterPanel.hidden = true;
+>>>>>>> 408bc0f4b12610ca1ef87aff0aea9e4fe4920059
     }
   }
 
@@ -1225,7 +1427,10 @@ categorySelect.addEventListener('change', () => {
 
         if ( history.length > 0 )
         {
-          previousAnswer = Decimal.fromString( String( history[ history.length - 1 ].result ) );
+          const result = String(history[history.length - 1].result);
+          previousAnswer = result.startsWith('matrix(')
+            ? evaluate(parse(result, null), false)
+            : Decimal.fromString(result);
         }
       }
     catch (e) 
@@ -1250,7 +1455,7 @@ categorySelect.addEventListener('change', () => {
   // Add a completed calculation to history.
   function addHistory( expression, result, display )
   {
-    // Store the original expression and numeric result.
+    // Store the original expression and reusable result text.
     history.push( { expression: expression, result: result, display: display } );
 
     if ( history.length > 100 )
@@ -1397,6 +1602,13 @@ categorySelect.addEventListener('change', () => {
   
   if (matchMedia('(pointer:coarse)').matches) exp.inputMode = 'none';
 
+  function displayResult(result) {
+    const matrix = result.answer instanceof Matrix;
+    const display = matrix ? result.value : (result.display || result.value).replaceAll('-', '−');
+    out.textContent = display;
+    out.classList.toggle('stats-out', matrix || display.includes('\n'));
+  }
+
   function preview() {
     msg.className = ''; msg.replaceChildren(); hideSteps();
     if (!exp.value.trim()) {
@@ -1405,9 +1617,11 @@ categorySelect.addEventListener('change', () => {
       return;
     }
     const r = run(exp.value, deg, previousAnswer);
-    const displayStr = r.ok ? (r.display || r.value).replaceAll('-', '−') : '';
-    out.textContent = displayStr;
-    out.classList.toggle('stats-out', displayStr.includes('\n'));
+    if (r.ok) displayResult(r);
+    else {
+      out.textContent = '';
+      out.classList.remove('stats-out');
+    }
   }
   function commit() {
     const s = exp.value; if (!s.trim()) return;
@@ -1415,16 +1629,18 @@ categorySelect.addEventListener('change', () => {
     const r = run(s, deg, previousAnswer);
     msg.replaceChildren();
     if (r.ok) {
-      const displayStr = (r.display || r.value).replaceAll('-', '−');
-      out.textContent = displayStr;
-      out.classList.toggle('stats-out', displayStr.includes('\n'));
+      displayResult(r);
       msg.textContent = r.note || (s + ' ='); msg.className = '';
-      last = r.value.replace(/^(-?[\d.]+)e([+-]?\d+)$/i, '($1×10^$2)'); fresh = true; showSteps(s); addHistory(s, r.value, r.display); previousAnswer = Decimal.fromString(r.value);
+      last = r.value.replace(/^(-?[\d.]+)e([+-]?\d+)$/i, '($1×10^$2)');
+      fresh = true;
+      showSteps(s, r.usesMatrix);
+      addHistory(s, r.value, r.display);
+      previousAnswer = r.answer;
     } else {
-      out.textContent = '';
-      out.classList.remove('stats-out');
       const e = r.err, pre = document.createElement('pre'), u = document.createElement('u');
-      msg.className = 'err'; msg.append(`${e.message} (column ${e.pos + 1})`);
+      out.textContent = e.message;
+      out.classList.add('stats-out');
+      msg.className = 'err'; msg.append(`Column ${e.pos + 1}`);
       u.textContent = s.substr(e.pos, e.len) || ' ';
       pre.append(s.slice(0, e.pos), u, s.slice(e.pos + e.len)); msg.append(pre);
     }
@@ -1459,6 +1675,10 @@ categorySelect.addEventListener('change', () => {
     else if (b.dataset.a === 'converter') {
       openConverter();
     }
+    else if (b.dataset.a === 'tolerance') {
+      tolerancePanel.hidden = !tolerancePanel.hidden;
+      converterPanel.hidden = true;
+    }
     else if (b.dataset.a === 'clear') {
       if (!converterPanel.hidden) {
         conversionValue.value = '';
@@ -1483,7 +1703,118 @@ categorySelect.addEventListener('change', () => {
     preview();
   }});
   exp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } });
-  modeSelect.addEventListener('change', () => setMode(modeSelect.value));
+  modeSelect.addEventListener('change', () => { converterPanel.hidden = true; tolerancePanel.hidden = true; setMode(modeSelect.value)});
+  // Requirement 09: Show the selected financial calculation
+  financialType.addEventListener('change', () => {
+    compoundInterestPanel.hidden = financialType.value !== 'compound';
+    loanPaymentPanel.hidden = financialType.value !== 'loan';
+
+    out.textContent = '0';
+    msg.textContent = '';
+  });
+
+  // Requirement 09: Compound Interest calculation
+  $('calculateCompound').addEventListener('click', () => {
+    const principal = Number($('principal').value);
+    const annualRate = Number($('annualRate').value);
+    const frequency = Number($('compoundingFrequency').value);
+    const years = Number($('investmentYears').value);
+
+    // Validate the inputs
+    if (
+      $('principal').value.trim() === '' ||
+      $('annualRate').value.trim() === '' ||
+      $('investmentYears').value.trim() === '' ||
+      !Number.isFinite(principal) ||
+      !Number.isFinite(annualRate) ||
+      !Number.isFinite(years) ||
+      principal <= 0 ||
+      annualRate < 0 ||
+      years <= 0
+    ) {
+      out.textContent = '';
+      msg.className = 'err';
+      msg.textContent = 'Please enter a valid principal, interest rate, and investment term.';
+      return;
+    }
+
+    // Convert the annual rate from a percentage to a decimal
+    const rate = annualRate / 100;
+
+    // Calculate the final balance
+    const amount = principal * Math.pow(1 + rate / frequency, frequency * years);
+
+    if (!Number.isFinite(amount)) {
+      out.textContent = '';
+      msg.className = 'err';
+      msg.textContent = 'The result is too large to calculate.';
+      return;
+    }
+
+    // Calculate the interest earned
+    const interest = amount - principal;
+
+    // Display the results
+    out.textContent = amount.toLocaleString('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    });
+
+    msg.textContent = '';
+    msg.className = '';
+  });
+    // Requirement 09: Loan Payment calculation
+  $('calculateLoan').addEventListener('click', () => {
+    const principal = Number($('loanPrincipal').value);
+    const annualRate = Number($('loanRate').value);
+    const frequency = Number($('paymentFrequency').value);
+    const years = Number($('loanYears').value);
+
+    // Calculate the total number of payments
+    const totalPayments = frequency * years;
+
+    // Validate the inputs
+    if (
+      $('loanPrincipal').value.trim() === '' ||
+      $('loanRate').value.trim() === '' ||
+      $('loanYears').value.trim() === '' ||
+      !Number.isFinite(principal) ||
+      !Number.isFinite(annualRate) ||
+      !Number.isFinite(years) ||
+      principal <= 0 ||
+      annualRate < 0 ||
+      years <= 0 ||
+      !Number.isInteger(totalPayments)
+    ) {
+      out.textContent = '';
+      msg.className = 'err';
+      msg.textContent = 'Please enter valid loan information. The loan term must result in a whole number of payments.';
+      return;
+    }
+
+    // Convert the annual interest rate to a periodic rate
+    const periodicRate = (annualRate / 100) / frequency;
+
+    let payment;
+
+    // Calculate payment (special case for zero interest)
+    if (periodicRate === 0) {
+      payment = principal / totalPayments;
+    } else {
+      payment =
+        principal * periodicRate /
+        (1 - Math.pow(1 + periodicRate, -totalPayments));
+    }
+
+    // Display the payment amount
+    out.textContent = payment.toLocaleString('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    });
+
+    msg.textContent = '';
+    msg.className = '';
+  });
   setMode(mode);
 
   function showModeMessage(text, error = false) {
@@ -1817,6 +2148,17 @@ categorySelect.addEventListener('change', () => {
     insert(symbol);
   };
 
+  window.insertCalculatorMatrix = function(rows, columns) {
+    if (rows * columns > MATRIX_ENTRY_LIMIT) {
+      msg.className = 'err';
+      msg.textContent = `Matrices can contain at most ${MATRIX_ENTRY_LIMIT} entries.`;
+      return;
+    }
+    const row = `[${Array(columns).fill('0').join(',')}]`;
+    window.insertCalculatorFunction(`matrix([${Array(rows).fill(row).join(',')}])`);
+    exp.focus();
+  };
+
 })();
 
 // Element Variables
@@ -1861,6 +2203,7 @@ function loadCategories() {
 }
 
 // Display functions matching category and search
+
 function displayFunctions() {
   const search = functionSearch.value.toLowerCase().trim();
   const category = categoryFilter.value;
@@ -1890,23 +2233,105 @@ function displayFunctions() {
   }
 
   filtered.forEach(func => {
-    const button = document.createElement("button");
-    button.className = "function-item";
-    button.type = "button";
+    const isMatrix =
+      func.symbol === "matrix" ||
+      func.symbol === "matrix(";
+
+    const row = document.createElement("div");
+    row.className = "function-item";
 
     const name = document.createElement("span");
+    name.className = "function-name";
     name.textContent = func.name;
 
     const symbol = document.createElement("small");
+    symbol.className = "function-symbol";
     symbol.textContent = func.symbol;
 
-    button.append(name, symbol);
+    // Regular functions
+    if (!isMatrix) {
+      row.setAttribute("role", "button");
+      row.tabIndex = 0;
 
-    button.addEventListener("click", () => {
-      window.insertCalculatorFunction(func.symbol);
-    });
+      const insert = () => {
+        window.insertCalculatorFunction(func.symbol);
+      };
 
-    functionList.appendChild(button);
+      row.addEventListener("click", insert);
+
+      row.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          insert();
+        }
+      });
+
+      row.append(name, symbol);
+    }
+
+    // Matrix function
+    else {
+      const matrixButton = document.createElement("button");
+      matrixButton.type = "button";
+      matrixButton.className = "matrix-function-button";
+      matrixButton.append(name);
+
+      const dimensions = document.createElement("div");
+      dimensions.className = "matrix-dimensions";
+
+      const rows = document.createElement("input");
+      rows.type = "number";
+      rows.min = "1";
+      rows.step = "1";
+      rows.value = "2";
+      rows.setAttribute("aria-label", "Matrix rows");
+
+      const multiply = document.createElement("span");
+      multiply.textContent = "×";
+
+      const cols = document.createElement("input");
+      cols.type = "number";
+      cols.min = "1";
+      cols.step = "1";
+      cols.value = "2";
+      cols.setAttribute("aria-label", "Matrix columns");
+
+      const insertMatrix = () => {
+        const r = Number(rows.value);
+        const c = Number(cols.value);
+
+        if (
+          !Number.isSafeInteger(r) ||
+          !Number.isSafeInteger(c) ||
+          r < 1 ||
+          c < 1
+        ) {
+          alert("Enter valid positive whole numbers.");
+          return;
+        }
+
+        window.insertCalculatorMatrix(r, c);
+      };
+
+      matrixButton.addEventListener("click", insertMatrix);
+
+      // Clicking the symbol also inserts the matrix.
+      symbol.classList.add("matrix-symbol");
+      symbol.setAttribute("role", "button");
+      symbol.tabIndex = 0;
+      symbol.addEventListener("click", insertMatrix);
+      symbol.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          insertMatrix();
+        }
+      });
+
+      dimensions.append(rows, multiply, cols);
+      row.append(matrixButton, dimensions, symbol);
+    }
+
+    functionList.appendChild(row);
   });
 }
 
