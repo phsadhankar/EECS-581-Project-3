@@ -8,7 +8,7 @@
  * INPUT:           Function definitions used by the calculator.
  * OUTPUT:          Function registry for searching and evaluating supported functions.
  * 
- * COLLABORATORS:   Ivan Kullaya, Gael Salazar-Morales, Gabriel Haro-Villa, Carter Ruff
+ * COLLABORATORS:   None
  * SOURCES:         TBD
  * 
  * AUTHOR:          Carter Ruff
