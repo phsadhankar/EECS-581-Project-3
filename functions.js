@@ -166,9 +166,33 @@ const calculatorFunctions = [
     name: "Inverse",
     symbol: "inverse(",
     categories: ["Matrices"]
+  },
+  {
+    id: "derivative",
+    name: "Derivative",
+    symbol: "d/dx()",
+    categories: ["Calculus"]
+  },
+  {
+    id: "integral",
+    name: "Indefinite Integral",
+    symbol: "integral(, )",
+    categories: ["Calculus"]
+  },
+  {
+    id: "definite_integral",
+    name: "Definite Integral",
+    symbol: "integral(, , , )",
+    categories: ["Calculus"]
+  },
+  {
+    id: "solve",
+    name: "Solve for Variable",
+    symbol: "solve(, )",
+    categories: ["Algebra"]
   }
 ];
 
 const functionRegistry = new Map(
-  calculatorFunctions.map(func => [func.id, func])
+  calculatorFunctions.filter(func => func.id !== "definite_integral").map(func => [func.id, func])
 );

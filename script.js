@@ -17,6 +17,9 @@
 
 (function () {
   'use strict';
+  // ========================================
+  // CALCULATOR CORE
+  // ========================================
   const $ = id => document.getElementById(id);
   class PErr extends Error { constructor(pos, len, msg) { super(msg); this.pos = pos; this.len = Math.max(1, len); } }
 
@@ -220,11 +223,14 @@
     }
   }
 
+  /* Matrix operations and limits */
   const MATRIX_ENTRY_LIMIT = 2500;
   const MATRIX_PRODUCT_LIMIT = 125000;
   const MATRIX_SQUARE_LIMIT = 32;
   const MATRIX_FUNCTIONS = new Set(['matrix', 'transpose', 'det', 'inverse']);
+  const SYMBOLIC_FUNCTIONS = new Set(['derivative', 'integral', 'solve']);
 
+  /* Matrix class to represent matrices and perform operations */
   class Matrix {
     constructor(rows) {
       this.rows = rows;
@@ -232,6 +238,7 @@
       this.width = rows[0].length;
     }
 
+    /* Applies a function to each entry of the matrix and returns a new matrix */
     map(fn) {
       return new Matrix(this.rows.map((row, i) => row.map((value, j) => fn(value, i, j))));
     }
@@ -245,6 +252,7 @@
     }
   }
 
+  /* Performs matrix operations based on the operator and operands */
   function matrixOperation(op, a, b, fail) {
     const aMatrix = a instanceof Matrix, bMatrix = b instanceof Matrix;
     if (op === '+' || op === '-') {
@@ -268,6 +276,7 @@
     )));
   }
 
+  /* Performs fraction-free Gaussian elimination to compute the determinant or inverse of a matrix */
   function eliminateMatrix(matrix, inverse, fail) {
     const size = matrix.height;
     const operation = inverse ? 'inverse' : 'det';
@@ -292,6 +301,7 @@
       return values;
     });
 
+    /* Requirement 27: Implement fraction-free Gaussian elimination to compute the determinant or inverse of a matrix */
     let previousPivot = 1n, sign = 1n;
     for (let k = 0; k < size; k++) {
       let pivotRow = k;
@@ -322,7 +332,7 @@
     )));
   }
 
-  const OPS = { '+': '+', '-': '-', '−': '-', '*': '*', '×': '*', '·': '*', '/': '/', '÷': '/', '^': '^', '(': '(', ')': ')', ',': ',', '[': '[', ']': ']' };
+  const OPS = { '+': '+', '-': '-', '−': '-', '*': '*', '×': '*', '·': '*', '/': '/', '÷': '/', '^': '^', '(': '(', ')': ')', ',': ',', '[': '[', ']': ']', '=': '=' };
   const FUNCS = { sin: 1, cos: 1, tan: 1, asin: 1, acos: 1, atan: 1, sqrt: 1, ln: 1, log: 1, exp: 1, abs: 1, prime: 1, fact: 1, gcd: 2, lcm: 2, pinc: 2, pdec: 2, pdiff: 2, mean: 1, medn: 1, mode: 1, stdev: 1, var: 1, stats: 1 };
   const CONSTS = {
     pi: Decimal.fromString('3.14159265358979323846264338327950288419716939937510'),
@@ -336,6 +346,11 @@
       const c = s[i], rest = s.slice(i);
       if (/\s/.test(c)) { i++; continue; }
       if ((m = /^(\d+\.?\d*|\.\d+)/.exec(rest))) { t.push({ k: 'num', v: Decimal.fromString(m[1]), text: m[1], pos: i, len: m[1].length }); i += m[1].length; continue; }
+      if ((m = /^d\s*\/\s*d([a-z]?)(?=\s*\()/i.exec(rest))) {
+        t.push({ k: 'id', v: 'derivative', variable: m[1].toLowerCase(), text: m[0], pos: i, len: m[0].length });
+        i += m[0].length;
+        continue;
+      }
       if (c === 'π') { t.push({ k: 'id', v: 'π', text: c, pos: i, len: 1 }); i++; continue; }
       if ((m = /^[A-Za-z_]+/.exec(rest))) { t.push({ k: 'id', v: m[0].toLowerCase(), text: m[0], pos: i, len: m[0].length }); i += m[0].length; continue; }
       if (c === '*' && s[i + 1] === '*') { t.push({ k: 'op', v: '^', text: '**', pos: i, len: 2 }); i += 2; continue; }
@@ -348,6 +363,7 @@
 
   function parse(src, ans) {
     const T = tokenize(src); let i = 0, usesMatrix = false;
+    let usesSymbolic = false, symbolicDepth = 0;
     const peek = () => T[i], next = () => T[i++];
     const isOp = (x, ...v) => x.k === 'op' && v.includes(x.v);
     const startsAtom = x => x.k === 'num' || x.k === 'id' || isOp(x, '(', '[');
@@ -376,7 +392,7 @@
     }
     function atom() {
       const x = next();
-      if (x.k === 'num') return { t: 'num', v: x.v };
+      if (x.k === 'num') return { t: 'num', v: x.v, raw: x.text };
       if (x.k === 'id') {
         // Requirement 03: Allow the user to type Ans
         if ( x.v === 'ans' )
@@ -393,24 +409,53 @@
             }
             return { t: 'num', v: ans };
           }
-        if (x.v in CONSTS) return { t: 'num', v: CONSTS[x.v], s: x.v === 'e' ? 'e' : 'π' };
+        if (Object.hasOwn(CONSTS, x.v)) return { t: 'num', v: CONSTS[x.v], s: x.v === 'e' ? 'e' : 'π' };
         if (functionRegistry.has(x.v)) {
+          /* Requirement 27: Matrix functions */
           if (MATRIX_FUNCTIONS.has(x.v)) usesMatrix = true;
           if (!isOp(peek(), '(')) {
             throw new PErr(x.pos, x.len, `"${x.text}" needs parentheses, for example ${x.text}(1)`);
           }
           const open = next();
           const args = [];
+          const symbolic = SYMBOLIC_FUNCTIONS.has(x.v);
+          if (symbolic) {
+            usesSymbolic = true;
+            symbolicDepth++;
+            if (x.variable === '' || (x.variable && Object.hasOwn(CONSTS, x.variable))) {
+              throw new PErr(x.pos, x.len, 'Specify a variable, for example x');
+            }
+          }
+          const missingArg = token => {
+            let message = x.v === 'integral' && args.length >= 2
+              ? 'Definite integral requires both lower and upper bounds'
+              : 'Missing argument near ","';
+            if (args.length === 1 && !x.variable) message = 'Specify a variable, for example x';
+            if (x.v === 'solve' && !args.length) message = 'Enter an equation, for example 2x + 3 = 11';
+            throw new PErr(token.pos, token.len, message);
+          };
 
           // Parse comma-separated arguments inside the function call
           if (!isOp(peek(), ')')) {
             if (isOp(peek(), ',')) {
+              if (symbolic) missingArg(peek());
               throw new PErr(peek().pos, peek().len, 'Missing argument before ","');
             }
-            args.push(expr());
+            const first = expr();
+            if (x.v === 'solve') {
+              const equal = peek();
+              if (!isOp(equal, '=')) throw new PErr(equal.pos, equal.len, 'Enter an equation with one "=" sign');
+              next();
+              const right = expr();
+              if (isOp(peek(), '=')) throw new PErr(peek().pos, peek().len, 'Enter an equation with one "=" sign');
+              args.push({ t: 'equation', l: first, r: right });
+            } else {
+              args.push(first);
+            }
             while (isOp(peek(), ',')) {
               const comma = next();
               if (isOp(peek(), ')') || isOp(peek(), ',')) {
+                if (symbolic) missingArg(comma);
                 throw new PErr(comma.pos, comma.len, 'Missing argument after ","');
               }
               args.push(expr());
@@ -421,6 +466,11 @@
             throw new PErr(peek().pos, peek().len, `Missing ")" for the "(" at column ${open.pos + 1}`);
           }
           next();
+          if (symbolic) symbolicDepth--;
+          if (x.variable) {
+            if (args.length !== 1) throw new PErr(x.pos, x.len, 'Derivative requires one expression inside parentheses');
+            args.push({ t: 'var', name: x.variable, pos: x.pos });
+          }
 
           return {
             t: 'call',
@@ -430,6 +480,8 @@
             pos: x.pos
           };
         }
+        if (symbolicDepth && /^[a-z]$/.test(x.v)) return { t: 'var', name: x.v, pos: x.pos };
+        if (symbolicDepth && isOp(peek(), '(')) throw new PErr(x.pos, x.len, `Unsupported function "${x.text}"`);
         throw new PErr(x.pos, x.len, `Unknown name "${x.text}"`);
       }
       if (isOp(x, '[')) {
@@ -472,10 +524,11 @@
       throw new PErr(x.pos, x.len, errMsg);
     }
     ast.usesMatrix = usesMatrix;
+    ast.usesSymbolic = usesSymbolic;
     return ast;
   }
 
-  function evaluate(n, deg) {
+  function evaluate(n, deg, allowSymbolic = false) {
     const toR = x => deg ? x * Math.PI / 180 : x, fromR = x => deg ? x * 180 / Math.PI : x;
     const snap = x => Math.abs(x) < 1e-12 ? 0 : x;
     const bad = (n, msg) => { throw new PErr(n.pos, n.t === 'call' ? n.f.length : 1, msg); };
@@ -497,12 +550,34 @@
         try { return a.pow(b); } catch (e) { bad(n, e.message); }
         break;
       }
+      /* Requirement 27: Matrix functions and operations */
       case 'call': {
+        if (SYMBOLIC_FUNCTIONS.has(n.f)) {
+          try {
+            const result = calculatorSymbolic(n);
+            if (result.symbolic !== undefined) {
+              if (!allowSymbolic) bad(n, 'Symbolic results must be evaluated as standalone expressions');
+              return { symbolic: true, toString: () => result.symbolic };
+            }
+            if (result.numerator !== undefined) {
+              const answer = new Decimal(result.numerator).div(new Decimal(result.denominator));
+              answer.display = result.exact;
+              return answer;
+            }
+            const answer = Decimal.fromNumber(result.approximate);
+            answer.display = result.exact ?? `≈ ${answer.toString()}`;
+            return answer;
+          } catch (error) {
+            if (error instanceof PErr) throw error;
+            bad(n, error.message);
+          }
+        }
         const scalar = arg => {
           const value = evaluate(arg, deg);
           if (value instanceof Matrix) bad(n, `${n.f} requires scalar values`);
           return value;
         };
+        /* Requirement 27: Validate that the matrix function is called with a single matrix argument and perform the operation */
         if (n.f === 'matrix') {
           const list = n.args[0];
           if (n.args.length !== 1 || list.t !== 'list' || !list.items.length) {
@@ -515,6 +590,7 @@
           if (list.items.length * width > MATRIX_ENTRY_LIMIT) {
             bad(n, `Matrices can contain at most ${MATRIX_ENTRY_LIMIT} entries`);
           }
+          /* Requirement 27: Validate that all matrix entries are scalar expressions and evaluate them */
           return new Matrix(list.items.map(row => row.items.map(entry => {
             if (entry.t === 'list') bad(entry, 'Matrix entries must be scalar expressions');
             const value = evaluate(entry, deg);
@@ -522,6 +598,7 @@
             return value;
           })));
         }
+        /* Requirement 27: Validate that matrix functions are called with a single matrix argument and perform the operation */
         if (MATRIX_FUNCTIONS.has(n.f)) {
           if (n.args.length !== 1) bad(n, `${n.f} requires one matrix argument`);
           const value = evaluate(n.a, deg);
@@ -988,12 +1065,406 @@
       }
     }
   }
+
+  // ========================================
+  // SYMBOLIC MATH (NERDAMER)
+  // ========================================
+  /* Shared adapter for Nerdamer 1.1.13's browser calculus and equation solver. */
+  const calculatorSymbolic = (() => {
+    const functions = new Map([
+      ['sin', 'sin'], ['cos', 'cos'], ['tan', 'tan'],
+      ['ln', 'log'], ['log', 'log'], ['abs', 'abs'], ['sqrt', 'sqrt']
+    ]);
+    const engineVariable = 'x';
+    const rationalPattern = /^(-?\d+)(?:\/(\d+))?$/;
+    const fail = message => { throw new Error(message); };
+    const text = result => result.text('fractions');
+    const numeric = result => {
+      if (result.variables().length || result.isImaginary()) return NaN;
+      const fraction = rationalPattern.exec(text(result));
+      if (fraction) {
+        const n = Number(fraction[1]), d = Number(fraction[2] ?? 1);
+        if (Number.isFinite(n) && Number.isFinite(d)) return n / d;
+      }
+      return Number(result.evaluate().text('decimals'));
+    };
+
+    function display(value, variable = engineVariable) {
+      return value.replace(/\bx\b/g, variable).replace(/\bpi\b/g, 'π').replace(/\blog\(/g, 'ln(')
+        .replace(/(?<![\w.])(\d+)\*([a-z])(?![a-z_(])/g, '$1$2')
+        .replace(/\+(-)/g, '$1').replace(/\+(?=.)/g, ' + ').replace(/(?<=[\w)])-(?=[\w(])/g, ' - ');
+    }
+
+    function compile(ast, variable, algebra = false) {
+      let budget = 180;
+      function read(node) {
+        if (--budget < 0) fail('Expression is too complex for symbolic calculation');
+        if (node.t === 'num') {
+          if (node.s && algebra) fail('Solve supports rational coefficients');
+          const source = node.s === 'π' ? 'pi' : node.s ?? node.raw ?? node.v.toString(true);
+          if (source.length > 256) fail('Number is too large for symbolic calculation');
+          return source;
+        }
+        if (node.t === 'var') {
+          if (node.name !== variable) {
+            fail(algebra ? 'Unsupported additional unknown "' + node.name + '"' :
+              'Missing value for variable "' + node.name + '"');
+          }
+          return engineVariable;
+        }
+        if (node.t === 'neg') return '(-(' + read(node.x) + '))';
+        if (node.t === 'bin') {
+          const left = read(node.l), right = read(node.r);
+          if (!algebra && node.op === '/' && text(nerdamer(right)) === '0') fail('Division by zero');
+          if (!algebra && node.op === '^' && Math.abs(numeric(nerdamer(right))) > 1000) {
+            fail('Exponent is too large for symbolic calculation');
+          }
+          return '(' + left + node.op + right + ')';
+        }
+        if (node.t === 'call' && !algebra && functions.has(node.f) && node.args.length === 1) {
+          const call = functions.get(node.f) + '(' + read(node.a) + ')';
+          // Nerdamer 1.1.13 differentiates log(u, 10) as though it were a natural log.
+          return node.f === 'log' ? '(' + call + '/log(10))' : call;
+        }
+        fail('Unsupported ' + (algebra ? 'equation' : 'calculus') + ' expression' + (node.f ? ': ' + node.f : ''));
+      }
+      return read(ast);
+    }
+
+    // Check the original AST so cancellation in the symbolic engine cannot hide poles.
+    function range(node, lo, hi, checkPhase = false) {
+      let limits;
+      if (node.t === 'num') {
+        const n = node.s === 'π' ? Math.PI : node.s === 'e' ? Math.E : Number(node.raw ?? node.v.toString());
+        limits = [n, n];
+      } else if (node.t === 'var') {
+        limits = [lo, hi];
+      } else if (node.t === 'neg') {
+        const [a, b] = range(node.x, lo, hi, checkPhase);
+        limits = [-b, -a];
+      } else if (node.t === 'call') {
+        const [a, b] = range(node.a, lo, hi, checkPhase);
+        const crosses = (offset, period) => Math.ceil((a - offset - 1e-14) / period) <= (b - offset + 1e-14) / period;
+        if (/^(sin|cos|tan)$/.test(node.f) && checkPhase && b - a > Math.PI / 2) throw new RangeError();
+        if (node.f === 'tan') {
+          if (crosses(Math.PI / 2, Math.PI)) throw new RangeError();
+          limits = [Math.tan(a), Math.tan(b)];
+        } else if (node.f === 'sin' || node.f === 'cos') {
+          const peak = node.f === 'sin' ? Math.PI / 2 : 0, period = 2 * Math.PI;
+          const left = Math[node.f](a), right = Math[node.f](b);
+          limits = [crosses(peak + Math.PI, period) ? -1 : Math.min(left, right),
+            crosses(peak, period) ? 1 : Math.max(left, right)];
+        } else if (node.f === 'abs') {
+          limits = [a <= 0 && b >= 0 ? 0 : Math.min(Math.abs(a), Math.abs(b)), Math.max(Math.abs(a), Math.abs(b))];
+        } else {
+          const logarithm = node.f === 'ln' || node.f === 'log';
+          if (logarithm ? a <= 0 : a < 0) throw new RangeError();
+          const fn = node.f === 'log' ? Math.log10 : logarithm ? Math.log : Math.sqrt;
+          limits = [fn(a), fn(b)];
+        }
+      } else {
+        const [a, b] = range(node.l, lo, hi, checkPhase);
+        const [c, d] = range(node.r, lo, hi, checkPhase);
+        if (node.op === '+') limits = [a + c, b + d];
+        if (node.op === '-') limits = [a - d, b - c];
+        if (node.op === '*' || node.op === '/') {
+          if (node.op === '/' && c <= 0 && d >= 0) throw new RangeError();
+          const corners = node.op === '*' ? [a * c, a * d, b * c, b * d] : [a / c, a / d, b / c, b / d];
+          limits = [Math.min(...corners), Math.max(...corners)];
+        }
+        if (node.op === '^') {
+          if ((a <= 0 && b >= 0 && c <= 0) || (a < 0 && (c !== d || !Number.isSafeInteger(c)))) throw new RangeError();
+          const corners = [a ** c, a ** d, b ** c, b ** d];
+          if (a <= 0 && b >= 0) corners.push(0);
+          if (a <= 1 && b >= 1) corners.push(1);
+          limits = [Math.min(...corners), Math.max(...corners)];
+        }
+      }
+      if (!limits?.every(Number.isFinite)) throw new RangeError();
+      return limits;
+    }
+
+    function checkedIntervals(ast, start, end, checkPhase) {
+      const intervals = [];
+      let budget = 4096;
+      function check(a, b, depth) {
+        if (--budget < 0) fail('Integral could not be evaluated over these bounds');
+        try {
+          range(ast, a, a);
+          range(ast, b, b);
+        } catch {
+          fail('Integrand is undefined or outside the numerical range over these bounds');
+        }
+        try {
+          range(ast, a, b, checkPhase);
+        } catch {
+          const middle = a + (b - a) / 2;
+          if (!depth || middle === a || middle === b) fail('Integrand is undefined or could not be verified over these bounds');
+          check(a, middle, depth - 1);
+          check(middle, b, depth - 1);
+          return;
+        }
+        intervals.push([a, b]);
+      }
+      check(Math.min(start, end), Math.max(start, end), 22);
+      return intervals;
+    }
+
+    function bound(ast) {
+      try {
+        const result = nerdamer(compile(ast));
+        const value = numeric(result);
+        if (!Number.isFinite(value)) throw new RangeError();
+        range(ast, 0, 0);
+        return { result, value };
+      } catch {
+        fail('Integration bounds must be finite, defined numbers without variables');
+      }
+    }
+
+    function checkExactEndpoint(ast, variable, at) {
+      const get = node => nerdamer(compile(node, variable)).sub(engineVariable, text(at));
+      function check(node) {
+        if (node.t === 'neg') check(node.x);
+        if (node.t === 'call') check(node.a);
+        if (node.t !== 'bin') return;
+        check(node.l);
+        check(node.r);
+        const singular = (node.op === '/' && text(get(node.r)) === '0') ||
+          (node.op === '^' && text(get(node.l)) === '0' && numeric(get(node.r)) < 0);
+        if (singular) fail('Integrand is undefined at an integration bound');
+      }
+      check(ast);
+    }
+
+    function exactResult(result) {
+      const source = text(result);
+      const match = rationalPattern.exec(source);
+      if (!match) {
+        const value = numeric(result);
+        return Number.isFinite(value) ? { exact: display(source), approximate: value } : null;
+      }
+      const numerator = BigInt(match[1]), denominator = BigInt(match[2] ?? 1);
+      let remaining = denominator;
+      for (const factor of [2n, 5n]) {
+        while (remaining % factor === 0n) remaining /= factor;
+      }
+      const terminating = remaining === 1n;
+      // Keep the fraction if the decimal would exceed the calculator's display precision.
+      let decimal = '';
+      if (terminating) {
+        const magnitude = numerator < 0n ? -numerator : numerator;
+        let remainder = magnitude % denominator, digits = '';
+        while (remainder && digits.length < 40) {
+          remainder *= 10n;
+          digits += remainder / denominator;
+          remainder %= denominator;
+        }
+        if (!remainder) decimal = (numerator < 0n ? '-' : '') + magnitude / denominator + (digits ? '.' + digits : '');
+      }
+      return { exact: decimal || source, numerator, denominator };
+    }
+
+    function realLogarithms(source) {
+      const stack = [];
+      return source.replace(/\blog\(|[()]/g, token => {
+        if (token === ')') return stack.pop() ? '))' : ')';
+        const logarithm = token === 'log(';
+        stack.push(logarithm);
+        return logarithm ? 'log(abs(' : '(';
+      });
+    }
+
+    function calculus(name, args, variable) {
+      if (name === 'integral' && args.length === 3) fail('Definite integral requires both lower and upper bounds');
+      if (name === 'derivative' ? args.length !== 2 : ![2, 4].includes(args.length)) {
+        fail('Provide an expression, a variable, and both bounds for a definite integral');
+      }
+      const source = compile(args[0], variable);
+      const expression = nerdamer(source);
+      if (expression.isImaginary() || /\b(?:Infinity|NaN)\b/.test(text(expression))) fail('Undefined calculus expression');
+      if (name === 'derivative') {
+        const derivative = text(nerdamer.diff(source, engineVariable));
+        if (/\bdiff\(/.test(derivative)) fail('No supported symbolic derivative for this expression');
+        return { symbolic: display(derivative, variable) };
+      }
+      let lower, upper;
+      if (args.length === 4) {
+        lower = bound(args[2]);
+        upper = bound(args[3]);
+        checkExactEndpoint(args[0], variable, lower.result);
+        checkExactEndpoint(args[0], variable, upper.result);
+        checkedIntervals(args[0], lower.value, upper.value, false);
+        if (lower.value === upper.value) {
+          if (text(nerdamer.expand('(' + text(upper.result) + ')-(' + text(lower.result) + ')')) !== '0') {
+            fail('Integration bounds are too close for numerical domain checking');
+          }
+          return exactResult(nerdamer('0'));
+        }
+      }
+      let primitive;
+      try { primitive = nerdamer.integrate(source, engineVariable); }
+      catch {
+        if (!lower) fail('No supported symbolic antiderivative for this expression');
+      }
+      const evaluated = primitive && !/\b(?:integrate|defint)\(/.test(text(primitive));
+      if (!lower) {
+        if (!evaluated || primitive.isImaginary()) fail('No supported symbolic antiderivative for this expression');
+        const shown = display(realLogarithms(text(primitive)), variable);
+        return { symbolic: shown + ' + C' };
+      }
+      if (evaluated) {
+        try {
+          const a = text(primitive.sub(engineVariable, text(lower.result)));
+          const b = text(primitive.sub(engineVariable, text(upper.result)));
+          const result = exactResult(nerdamer.expand('(' + b + ')-(' + a + ')'));
+          if (result) return result;
+        } catch {
+          // A real integrand can have a primitive that Nerdamer represents using complex logs.
+        }
+      }
+      // Supply a callback directly to Nerdamer's integrator. Its defint fallback compiles JavaScript.
+      const integrate = nerdamer.getCore().Math2.num_integrate;
+      const total = checkedIntervals(args[0], lower.value, upper.value, true).reduce((sum, [a, b]) =>
+        sum + integrate(x => range(args[0], x, x)[0], a, b), 0);
+      if (!Number.isFinite(total)) fail('Integral could not be evaluated over these bounds');
+      return { approximate: total * Math.sign(upper.value - lower.value) };
+    }
+
+
+    // ========================================
+    // EQUATION SOLVING
+    // ========================================
+    const expand = source => text(nerdamer.expand(source));
+    const product = (a, b) => '((' + a + ')*(' + b + '))';
+
+    function polynomialRoots(source) {
+      const polynomial = expand(source);
+      const coefficients = nerdamer('coeffs(' + polynomial + ',' + engineVariable + ')').symbol.elements.map(String);
+      if (coefficients.length > 3 || !coefficients.every(c => rationalPattern.test(c))) {
+        fail('Solve supports linear or quadratic equations with rational coefficients');
+      }
+      if (coefficients.length === 1) return { identity: coefficients[0] === '0', roots: [] };
+      let expected = 1, complex = false;
+      if (coefficients.length === 3) {
+        const [c, b, a] = coefficients;
+        const discriminant = expand('(' + b + ')^2-4*(' + a + ')*(' + c + ')');
+        complex = discriminant.startsWith('-');
+        expected = complex ? 0 : discriminant === '0' ? 1 : 2;
+      }
+      if (!expected) return { roots: [], complex };
+      const roots = [];
+      for (const candidate of nerdamer.solveEquations(polynomial, engineVariable)) {
+        const root = nerdamer(String(candidate));
+        if (!Number.isFinite(numeric(root))) continue;
+        if (roots.some(other => expand('(' + text(other) + ')-(' + text(root) + ')') === '0')) continue;
+        roots.push(root);
+      }
+      if (roots.length !== expected) fail('Could not determine all real solutions');
+      roots.sort((a, b) => numeric(a) - numeric(b));
+      return { roots };
+    }
+
+    // Clear polynomial denominators while recording every original exclusion.
+    function rationalEquation(equation, variable) {
+      const exclusions = new Set();
+      function polynomial(source, degree) {
+        if (degree > 16) fail('Equation is too complex to reduce to a linear or quadratic equation');
+        return { source, degree };
+      }
+      const multiply = (a, b) => polynomial(product(a.source, b.source), a.degree + b.degree);
+      const one = polynomial('1', 0);
+      function exclude(source) {
+        const value = expand(source);
+        if (value === '0') fail('Division by zero in equation');
+        if (!rationalPattern.test(value)) exclusions.add(value);
+      }
+      function read(node) {
+        if (node.t === 'num' || node.t === 'var') {
+          return [polynomial(compile(node, variable, true), node.t === 'var' ? 1 : 0), one];
+        }
+        if (node.t === 'neg') {
+          const [a, b] = read(node.x);
+          return [polynomial('-(' + a.source + ')', a.degree), b];
+        }
+        if (node.t !== 'bin') fail('Unsupported function or expression in equation' + (node.f ? ': ' + node.f : ''));
+        const [a, b] = read(node.l), [c, d] = read(node.r);
+        if (node.op === '/') exclude(c.source);
+        if (node.op === '^') {
+          const exponentText = expand('(' + c.source + ')/(' + d.source + ')');
+          if (!/^-?\d+$/.test(exponentText) || Math.abs(Number(exponentText)) > 8) {
+            fail('Solve supports only small integer powers of algebraic expressions');
+          }
+          const exponent = Number(exponentText), power = Math.abs(exponent);
+          if (exponent < 0) exclude(a.source);
+          const raise = value => polynomial('(' + value.source + ')^' + power, value.degree * power);
+          return exponent < 0 ? [raise(b), raise(a)] : [raise(a), raise(b)];
+        }
+        if (node.op === '*') return [multiply(a, c), multiply(b, d)];
+        if (node.op === '/') return [multiply(a, d), multiply(b, c)];
+        const first = multiply(a, d), second = multiply(c, b);
+        return [polynomial(first.source + node.op + second.source, Math.max(first.degree, second.degree)), multiply(b, d)];
+      }
+      // Check size, supported syntax and variables before clearing denominators.
+      const left = compile(equation.l, variable, true), right = compile(equation.r, variable, true);
+      const [a, b] = read(equation.l), [c, d] = read(equation.r);
+      return { polynomial: multiply(a, d).source + '-' + multiply(c, b).source, exclusions: [...exclusions], left, right };
+    }
+
+    function solve(equation, variable) {
+      if (equation?.t !== 'equation') fail('Enter an equation, for example 2x + 3 = 11');
+      const { polynomial, exclusions, left, right } = rationalEquation(equation, variable);
+      const result = polynomialRoots(polynomial);
+      const excluded = exclusions.flatMap(source => polynomialRoots(source).roots);
+      if (result.identity) {
+        const distinct = [...new Set(excluded.map(root => display(text(root))))];
+        if (!distinct.length) return 'All real values of ' + variable + ' satisfy this equation';
+        return 'All real values of ' + variable + ' except ' + distinct.join(', ') + ' satisfy this equation';
+      }
+      if (!result.roots.length) return result.complex ? 'No real solutions' : 'No solution';
+      const verified = [];
+      for (const root of result.roots) {
+        const rootText = text(root);
+        if (excluded.some(point => expand('(' + text(point) + ')-(' + rootText + ')') === '0')) continue;
+        for (const denominator of exclusions) {
+          if (expand(text(nerdamer(denominator).sub(engineVariable, rootText))) === '0') {
+            fail('Could not verify the domain of a candidate solution');
+          }
+        }
+        const a = nerdamer(left).sub(engineVariable, rootText), b = nerdamer(right).sub(engineVariable, rootText);
+        const av = numeric(a), bv = numeric(b);
+        const residual = expand('(' + text(a) + ')-(' + text(b) + ')');
+        if (!Number.isFinite(av) || !Number.isFinite(bv) ||
+            (residual !== '0' && Math.abs(av - bv) > 1e-10 * Math.max(1, Math.abs(av), Math.abs(bv)))) {
+          fail('Could not verify a candidate solution in the original equation');
+        }
+        verified.push(variable + ' = ' + display(rootText));
+      }
+      return verified.join(', ') || 'No solution';
+    }
+
+    return function calculate({ f, args }) {
+      if (typeof nerdamer !== 'function') fail('The symbolic math library could not be loaded');
+      if (f === 'solve' && !args.length) fail('Enter an equation, for example 2x + 3 = 11');
+      if (!args[1] || args[1].t !== 'var') fail('Specify a variable, for example x');
+      if (f === 'solve') {
+        if (args.length !== 2) fail('Solve requires one equation and one variable');
+        return { symbolic: solve(args[0], args[1].name) };
+      }
+      return calculus(f, args, args[1].name);
+    };
+  })();
+
+  // ========================================
+  // CALCULATION ENTRY POINT
+  // ========================================
   function run(src, deg, ans) {
     let ast;
     try {
       ast = parse(src, ans);
-      const answer = evaluate(ast, deg);
-      return { ok: true, answer, value: answer.toString(), display: answer.display, note: answer.note, usesMatrix: ast.usesMatrix };
+      const answer = evaluate(ast, deg, true);
+      return { ok: true, answer, value: answer.toString(), display: answer.display, note: answer.note,
+        usesMatrix: ast.usesMatrix, usesSymbolic: ast.usesSymbolic };
     } catch (e) {
       if (e instanceof PErr) return { ok: false, err: e };
       if (ast?.usesMatrix && (e instanceof RangeError || e.message === 'Result is not finite')) {
@@ -1094,6 +1565,7 @@
   function hideSteps() { stepsBox.hidden = true; stepsBox.open = false; stepList.replaceChildren(); }
   function showSteps(src, usesMatrix) {
     hideSteps(); let st = [];
+    // Requirement 27: If the expression uses matrices, display a message indicating that step-by-step solutions are unavailable for matrix expressions
     if (usesMatrix) {
       const li = document.createElement('li');
       li.textContent = 'Step-by-step solutions are unavailable for matrix expressions.';
@@ -1374,9 +1846,10 @@ categorySelect.addEventListener('change', () => {
           }
         }
 
-        if ( history.length > 0 )
+        const mostRecentValue = history.findLast(item => !item.symbolic);
+        if ( mostRecentValue )
         {
-          const result = String(history[history.length - 1].result);
+          const result = String(mostRecentValue.result);
           previousAnswer = result.startsWith('matrix(')
             ? evaluate(parse(result, null), false)
             : Decimal.fromString(result);
@@ -1402,10 +1875,10 @@ categorySelect.addEventListener('change', () => {
   }
 
   // Add a completed calculation to history.
-  function addHistory( expression, result, display )
+  function addHistory( expression, result, display, symbolic )
   {
     // Store the original expression and reusable result text.
-    history.push( { expression: expression, result: result, display: display } );
+    history.push( { expression: expression, result: result, display: display, symbolic: symbolic } );
 
     if ( history.length > 100 )
     {
@@ -1549,16 +2022,198 @@ categorySelect.addEventListener('change', () => {
   loadHistory();      // Requirement 03: Load the saved history when the calculator starts.
   renderHistory();    // Requirement 03: Display the loaded history.
   
+  // ========================================
+  // CALCULUS AND ALGEBRA INPUT PLACEHOLDERS
+  // ========================================
+  /* Render argument hints while keeping the native input as the source of truth. */
+  function attachExpressionHints(input, overlay) {
+    const preview = document.createElement('div');
+    preview.className = 'expression-preview';
+    overlay.append(preview);
+
+    const defaultInputMode = input.inputMode;
+    const slotsForIntegral = ['expr', 'var', 'Low BD', 'Up BD'];
+    let cachedValue, cachedSelection, calls = [], pieces = [], pointerAnchor = null;
+
+    function findCalls(value) {
+      const result = [];
+      const names = /(?<![a-z_])(integral|derivative|d\s*\/\s*d[a-z]|solve)\s*\(/gi;
+      for (const match of value.matchAll(names)) {
+        const name = match[1].toLowerCase();
+        const labels = name === 'integral' ? slotsForIntegral :
+          name === 'solve' ? ['equation', 'variable'] :
+          name === 'derivative' ? slotsForIntegral.slice(0, 2) : ['expression'];
+        const start = match.index + match[0].length;
+        const slots = [];
+        let from = start, depth = 0, end = start;
+        for (; end <= value.length; end++) {
+          const char = value[end];
+          if (end === value.length || (depth === 0 && (char === ',' || char === ')'))) {
+            const text = value.slice(from, end);
+            const trimStart = text.trimStart();
+            const left = end - trimStart.length, right = left + trimStart.trimEnd().length;
+            slots.push({ from, to: end, left, right, label: labels[slots.length] });
+            if (char !== ',') break;
+            from = end + 1;
+          } else if (char === '(' || char === '[') {
+            depth++;
+          } else if (char === ')' || char === ']') {
+            depth = Math.max(0, depth - 1);
+          }
+        }
+        if (slots.length <= labels.length) result.push({ start, end, slots });
+      }
+      return result;
+    }
+
+    function render() {
+      const { value, selectionStart, selectionEnd, selectionDirection } = input;
+      const focused = document.activeElement === input;
+      if (cachedValue !== value) {
+        cachedValue = value;
+        cachedSelection = null;
+        calls = findCalls(value);
+      }
+
+      const state = [focused, selectionStart, selectionEnd, selectionDirection].join('/');
+      if (state === cachedSelection) return;
+      cachedSelection = state;
+      if (defaultInputMode === 'none') input.inputMode = calls.length ? 'text' : defaultInputMode;
+
+      const ghosts = new Map();
+      for (const { slots } of calls) {
+        for (const slot of slots) {
+          if (slot.left === slot.right) ghosts.set(slot.left, slot.label);
+        }
+      }
+      overlay.hidden = !ghosts.size;
+      if (overlay.hidden) {
+        pieces = [];
+        preview.replaceChildren();
+        return;
+      }
+
+      const cursor = selectionDirection === 'backward' ? selectionStart : selectionEnd;
+      const marks = new Set([0, value.length, ...ghosts.keys()]);
+      if (focused) { marks.add(selectionStart); marks.add(selectionEnd); }
+      const ordered = [...marks].sort((a, b) => a - b);
+      const nodes = [];
+      let caret;
+      pieces = [];
+
+      function span(text, from, to, className) {
+        const node = document.createElement('span');
+        node.textContent = text;
+        if (className) node.className = className;
+        nodes.push(node);
+        pieces.push({ node, from, to });
+        return node;
+      }
+
+      for (let i = 0; i < ordered.length; i++) {
+        const from = ordered[i], to = ordered[i + 1];
+        if (focused && from === cursor) caret = span('', from, from, 'expression-caret');
+        if (ghosts.has(from)) span(ghosts.get(from), from, from, 'expression-ghost');
+        if (to !== undefined) {
+          const selected = focused && from >= selectionStart && to <= selectionEnd;
+          span(value.slice(from, to), from, to, selected ? 'expression-selection' : '');
+        }
+      }
+      preview.replaceChildren(...nodes);
+
+      if (caret) {
+        const x = caret.getBoundingClientRect().left;
+        const { left, right } = overlay.getBoundingClientRect();
+        // A long formula scrolls horizontally just enough to keep the editing position visible.
+        if (x < left) overlay.scrollLeft -= left - x;
+        if (x > right - 2) overlay.scrollLeft += x - right + 2;
+      } else if (!focused) {
+        overlay.scrollLeft = overlay.scrollWidth;
+      }
+    }
+
+    function offsetAt(x) {
+      for (const { node, from, to } of pieces) {
+        const rect = node.getBoundingClientRect();
+        if (x > rect.right) continue;
+        if (x <= rect.left || from === to) return from;
+        const range = document.createRange();
+        let low = 0, high = to - from;
+        const text = node.firstChild;
+        while (low < high) {
+          const middle = Math.floor((low + high) / 2);
+          range.setStart(text, middle);
+          range.setEnd(text, middle + 1);
+          const { left, right } = range.getBoundingClientRect();
+          if (x <= (left + right) / 2) high = middle;
+          else low = middle + 1;
+        }
+        return from + low;
+      }
+      return input.value.length;
+    }
+
+    function select(anchor, end) {
+      input.setSelectionRange(Math.min(anchor, end), Math.max(anchor, end), end < anchor ? 'backward' : 'forward');
+      render();
+    }
+
+    overlay.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      const end = offsetAt(event.clientX);
+      pointerAnchor = event.shiftKey && document.activeElement === input
+        ? (input.selectionDirection === 'backward' ? input.selectionEnd : input.selectionStart)
+        : end;
+      event.preventDefault();
+      input.focus();
+      select(pointerAnchor, end);
+      overlay.setPointerCapture(event.pointerId);
+    });
+    overlay.addEventListener('pointermove', event => {
+      if (pointerAnchor !== null && overlay.hasPointerCapture(event.pointerId)) {
+        select(pointerAnchor, offsetAt(event.clientX));
+      }
+    });
+    overlay.addEventListener('lostpointercapture', () => { pointerAnchor = null; });
+
+    input.addEventListener('keydown', event => {
+      if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return;
+      render();
+      const from = input.selectionStart, to = input.selectionEnd;
+      for (let i = calls.length - 1; i >= 0; i--) {
+        const call = calls[i];
+        if (from < call.start || to > call.end) continue;
+        const current = call.slots.findIndex(slot => from >= slot.from && to <= slot.to);
+        if (current < 0) continue;
+        const next = call.slots[current + (event.shiftKey ? -1 : 1)];
+        if (!next) continue;
+        event.preventDefault();
+        select(next.left, next.right);
+        return;
+      }
+    });
+    for (const event of ['focus', 'blur', 'input', 'select', 'keyup', 'selectionchange']) {
+      input.addEventListener(event, render);
+    }
+    document.addEventListener('selectionchange', () => {
+      if (document.activeElement === input) render();
+    });
+
+    return render;
+  }
+
   if (matchMedia('(pointer:coarse)').matches) exp.inputMode = 'none';
+  const renderExpressionHints = attachExpressionHints(exp, $('expr-ghosts'));
 
   function displayResult(result) {
     const matrix = result.answer instanceof Matrix;
     const display = matrix ? result.value : (result.display || result.value).replaceAll('-', '−');
     out.textContent = display;
-    out.classList.toggle('stats-out', matrix || display.includes('\n'));
+    out.classList.toggle('stats-out', matrix || result.answer.symbolic === true || display.includes('\n'));
   }
 
   function preview() {
+    renderExpressionHints();
     msg.className = ''; msg.replaceChildren(); hideSteps();
     if (!exp.value.trim()) {
       out.textContent = '0';
@@ -1580,11 +2235,11 @@ categorySelect.addEventListener('change', () => {
     if (r.ok) {
       displayResult(r);
       msg.textContent = r.note || (s + ' ='); msg.className = '';
-      last = r.value.replace(/^(-?[\d.]+)e([+-]?\d+)$/i, '($1×10^$2)');
+      last = r.answer.symbolic ? '' : r.value.replace(/^(-?[\d.]+)e([+-]?\d+)$/i, '($1×10^$2)');
       fresh = true;
-      showSteps(s, r.usesMatrix);
-      addHistory(s, r.value, r.display);
-      previousAnswer = r.answer;
+      if (!r.usesSymbolic) showSteps(s, r.usesMatrix);
+      addHistory(s, r.value, r.display, r.answer.symbolic);
+      if (!r.answer.symbolic) previousAnswer = r.answer;
     } else {
       const e = r.err, pre = document.createElement('pre'), u = document.createElement('u');
       out.textContent = e.message;
@@ -1594,9 +2249,12 @@ categorySelect.addEventListener('change', () => {
       pre.append(s.slice(0, e.pos), u, s.slice(e.pos + e.len)); msg.append(pre);
     }
   }
-  function insert(t) {
+  function insert(t, caretOffset = t.length) {
     if (fresh) { exp.value = /^[+−×÷^]/.test(t) ? last : ''; exp.setSelectionRange(exp.value.length, exp.value.length); fresh = false; }
-    exp.setRangeText(t, exp.selectionStart, exp.selectionEnd, 'end'); preview();
+    const caret = exp.selectionStart + caretOffset;
+    exp.setRangeText(t, exp.selectionStart, exp.selectionEnd, 'end');
+    exp.setSelectionRange(caret, caret);
+    preview();
   }
   function back() {
     fresh = false;
@@ -1614,6 +2272,7 @@ categorySelect.addEventListener('change', () => {
     if (b.dataset.k) {
       if (!converterPanel.hidden) {
         exp.value += b.dataset.k;
+        renderExpressionHints();
         updateConversionResult();
       } else {
       insert(b.dataset.k);
@@ -1629,6 +2288,7 @@ categorySelect.addEventListener('change', () => {
     else if (b.dataset.a === 'clear') {
       if (!converterPanel.hidden) {
         exp.value = '';
+        renderExpressionHints();
         out.textContent = '0';
         msg.textContent = '';
         categorySelect.value = '';
@@ -1777,14 +2437,16 @@ categorySelect.addEventListener('change', () => {
   if (!matchMedia('(pointer:coarse)').matches) exp.focus();
 
   // Allow the function menu to insert expressions
-  window.insertCalculatorFunction = function(symbol) {
+  window.insertCalculatorFunction = function(symbol, hasGhostSlots = false) {
     if (!converterPanel.hidden) {
       closeUnitConverter();
     }
 
-    insert(symbol);
+    insert(symbol, hasGhostSlots ? symbol.indexOf('(') + 1 : symbol.length);
+    if (hasGhostSlots) exp.focus();
   };
 
+  /* ---------- matrix ---------- */
   window.insertCalculatorMatrix = function(rows, columns) {
     if (rows * columns > MATRIX_ENTRY_LIMIT) {
       msg.className = 'err';
@@ -1804,6 +2466,7 @@ const sideMenu = document.getElementById("sideMenu");
 const categoryFilter = document.getElementById("categoryFilter");
 const functionSearch = document.getElementById("functionSearch");
 const functionList = document.getElementById("functionList");
+const SYMBOLIC_SIDEBAR_FUNCTIONS = new Set(["derivative", "integral", "definite_integral", "solve"]);
 
 // Menu Toggle Logic
 menuToggle.addEventListener("click", () => {
@@ -1891,7 +2554,7 @@ function displayFunctions() {
       row.tabIndex = 0;
 
       const insert = () => {
-        window.insertCalculatorFunction(func.symbol);
+        window.insertCalculatorFunction(func.symbol, SYMBOLIC_SIDEBAR_FUNCTIONS.has(func.id));
       };
 
       row.addEventListener("click", insert);

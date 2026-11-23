@@ -75,4 +75,4 @@ The team tests features against the acceptance criteria and test cases in the re
 
 Developed for **EECS 581 – Software Engineering II**, Fall 2026, at the University of Kansas under **Professor Hossein Saiedian**.
 
-The application uses the third-party **particles.js** library for an optional animated background and the **Frankfurter API** for currency exchange rates.
+The application uses the third-party **particles.js** library for an optional animated background, **Frankfurter API** for currency exchange rates, and **Nerdamer** for calculus solving.
