@@ -1136,3 +1136,50 @@ body.graph-open { align-items: flex-start; }
   font-size: 13px;
   color: var(--mute);
 }
+
+/* Requirement 25: Saved financial scenario entries */
+.scenario-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  margin: 6px 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--key);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.scenario-entry input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+/* Requirement 25: Financial scenario comparison table */
+#scenarioComparison {
+  margin-top: 12px;
+  overflow-x: auto;
+}
+
+#scenarioComparison table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+#scenarioComparison th,
+#scenarioComparison td {
+  padding: 8px;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+#scenarioComparison th {
+  background: var(--key);
+  color: var(--ink);
+}
+
+#scenarioComparison td {
+  color: var(--ink);
+}

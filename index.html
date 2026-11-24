@@ -137,6 +137,32 @@
 
           <button type="button" id="calculateLoan">Calculate</button>
         </div>
+        <!-- Requirement 25: Financial Scenario Comparison -->
+        <div id="financialScenariosPanel" class="history-panel">
+          <h3>Financial Scenarios</h3>
+
+          <div class="scenario-save">
+            <label for="scenarioName">Scenario Name:</label>
+            <input
+              type="text"
+              id="scenarioName"
+              maxlength="80"
+              placeholder="e.g. Investment at 5%"
+            />
+
+            <button type="button" id="saveScenario">Save Scenario</button>
+          </div>
+
+          <p id="scenarioMessage" role="status" aria-live="polite"></p>
+
+          <div id="scenarioList">
+            <p id="scenariosEmpty">No saved scenarios yet.</p>
+          </div>
+
+          <button type="button" id="compareScenarios">Compare Selected Scenarios</button>
+
+          <div id="scenarioComparison"></div>
+        </div>
       </div>
 
       <div id="converterPanel" hidden="">

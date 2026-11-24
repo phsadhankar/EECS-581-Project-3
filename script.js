@@ -1816,6 +1816,13 @@ categorySelect.addEventListener('change', () => {
   const fractionPanel = $('fractionPanel');
   const programmerPanel = $('programmerPanel');
   const complexPanel = $('complexPanel');
+  // Requirement 25: Financial Scenario Comparison
+  const scenarioName = $('scenarioName');
+  const saveScenario = $('saveScenario');
+  const scenarioMessage = $('scenarioMessage');
+  const scenarioList = $('scenarioList');
+  const compareScenarios = $('compareScenarios');
+  const scenarioComparison = $('scenarioComparison');
   let deg = false, fresh = false, last = '';
   let mode = 'basic';
 
@@ -1990,6 +1997,91 @@ categorySelect.addEventListener('change', () => {
 
   renderFavorites();
 
+  // Requirement 25: Financial Scenario Comparison
+  const SCENARIOS_KEY = 'financial-scenarios-v1';
+  let scenarios = [];
+
+  try
+  {
+    const savedScenarios = JSON.parse(
+      localStorage.getItem(SCENARIOS_KEY) || '[]'
+    );
+
+    if (Array.isArray(savedScenarios))
+      scenarios = savedScenarios.slice(0, 100);
+  }
+  catch (_) { scenarios = []; }
+  // Requirement 25: Stores the most recent financial calculation
+  let lastFinancialCalculation = null;
+  // Requirement 25: Clear saved calculation when loan inputs change
+  ['loanPrincipal', 'loanRate', 'paymentFrequency', 'loanYears']
+    .forEach(id => {
+      $(id).addEventListener('input', () => {
+        lastFinancialCalculation = null;
+      });
+
+      $(id).addEventListener('change', () => {
+        lastFinancialCalculation = null;
+      });
+  });
+  // Requirement 25: Clear saved calculation when inputs change
+  ['principal', 'annualRate', 'compoundingFrequency', 'investmentYears']
+  .forEach(id => {
+    $(id).addEventListener('input', () => {
+      lastFinancialCalculation = null;
+    });
+
+    $(id).addEventListener('change', () => {
+      lastFinancialCalculation = null;
+    });
+  });
+
+  // Requirement 25: Saves financial scenarios to localStorage
+  function persistScenarios()
+  {
+    try
+    {
+      localStorage.setItem(SCENARIOS_KEY, JSON.stringify(scenarios));
+      return true;
+    }
+    catch (_)
+    {
+      return false;
+    }
+  }
+
+  // Requirement 25: Displays saved financial scenarios
+  function renderScenarios()
+  {
+    scenarioList.innerHTML = '';
+
+    if (scenarios.length === 0)
+    {
+      scenarioList.innerHTML = '<p>No saved scenarios yet.</p>';
+      return;
+    }
+
+    scenarios.forEach((scenario, index) =>
+    {
+      const item = document.createElement('div');
+      item.className = 'scenario-entry';
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = index;
+      checkbox.className = 'scenario-checkbox';
+
+      const name = document.createElement('span');
+      name.textContent = scenario.name;
+
+      item.appendChild(checkbox);
+      item.appendChild(name);
+
+      scenarioList.appendChild(item);
+    });
+  }
+  // Requirement 25: Displays previously saved scenarios on startup
+  renderScenarios();
 
   const modeNames = {
     basic: 'Basic calculation mode',
@@ -2561,6 +2653,7 @@ categorySelect.addEventListener('change', () => {
   modeSelect.addEventListener('change', () => { converterPanel.hidden = true; tolerancePanel.hidden = true; setMode(modeSelect.value)});
   // Requirement 09: Show the selected financial calculation
   financialType.addEventListener('change', () => {
+    lastFinancialCalculation = null;
     compoundInterestPanel.hidden = financialType.value !== 'compound';
     loanPaymentPanel.hidden = financialType.value !== 'loan';
     const placeholder = financialType.querySelector('option[value=""]');
@@ -2610,6 +2703,18 @@ categorySelect.addEventListener('change', () => {
 
     // Calculate the interest earned
     const interest = amount - principal;
+    // Requirement 25: Store the latest compound interest calculation
+    lastFinancialCalculation = {
+      type: 'compound',
+      inputs: {
+        principal: principal,
+        annualRate: annualRate,
+        frequency: frequency,
+        years: years
+      },
+      result: amount,
+      interest: interest
+    };
 
     // Display the results
     out.textContent = amount.toLocaleString('en-US', {
@@ -2662,6 +2767,18 @@ categorySelect.addEventListener('change', () => {
         principal * periodicRate /
         (1 - Math.pow(1 + periodicRate, -totalPayments));
     }
+    // Requirement 25: Store the latest loan calculation
+    lastFinancialCalculation = {
+      type: 'loan',
+      inputs: {
+        principal: principal,
+        annualRate: annualRate,
+        frequency: frequency,
+        years: years,
+        totalPayments: totalPayments
+      },
+      result: payment
+    };
 
     // Display the payment amount
     out.textContent = payment.toLocaleString('en-US', {
@@ -2672,6 +2789,122 @@ categorySelect.addEventListener('change', () => {
     msg.textContent = '';
     msg.className = '';
   });
+  // Requirement 25: Save a named financial scenario
+  saveScenario.addEventListener('click', () => {
+    const name = scenarioName.value.trim();
+
+    if (!name) {
+      scenarioMessage.textContent = 'Please enter a scenario name.';
+      return;
+    }
+
+    if (!lastFinancialCalculation) {
+      scenarioMessage.textContent = 'Please complete a financial calculation first.';
+      return;
+    }
+
+    if (scenarios.some(scenario =>
+      scenario.name.toLowerCase() === name.toLowerCase()
+    )) {
+      scenarioMessage.textContent = 'A scenario with that name already exists.';
+      return;
+    }
+
+    if (scenarios.length >= 100) {
+      scenarioMessage.textContent = 'You can save a maximum of 100 scenarios.';
+      return;
+    }
+
+    const newScenario = {
+      name: name,
+      type: lastFinancialCalculation.type,
+      inputs: { ...lastFinancialCalculation.inputs },
+      result: lastFinancialCalculation.result,
+      interest: lastFinancialCalculation.interest
+    };
+
+    scenarios.push(newScenario);
+
+    if (!persistScenarios()) {
+      scenarios.pop();
+      scenarioMessage.textContent = 'Unable to save scenario. Storage may be full.';
+      return;
+    }
+
+    renderScenarios();
+    scenarioName.value = '';
+    scenarioMessage.textContent = 'Scenario saved successfully!';
+  });
+
+  // Requirement 25: Compare selected financial scenarios
+  compareScenarios.addEventListener('click', () => {
+    const selectedCheckboxes = scenarioList.querySelectorAll(
+      '.scenario-checkbox:checked'
+    );
+
+    const selectedScenarios = Array.from(selectedCheckboxes).map(
+      checkbox => scenarios[Number(checkbox.value)]
+    );
+
+    if (selectedScenarios.length < 2) {
+      scenarioComparison.textContent =
+        'Please select at least two scenarios to compare.';
+      return;
+    }
+
+    const table = document.createElement('table');
+    const header = document.createElement('tr');
+
+    const labelHeader = document.createElement('th');
+    labelHeader.textContent = 'Details';
+    header.appendChild(labelHeader);
+
+    selectedScenarios.forEach(scenario => {
+      const th = document.createElement('th');
+      th.textContent = scenario.name;
+      header.appendChild(th);
+    });
+
+    table.appendChild(header);
+
+    const rows = [
+      ['Calculation', s => s.type === 'compound' ? 'Compound Interest' : 'Loan Payment'],
+      ['Principal', s => s.inputs.principal],
+      ['Annual Rate', s => `${s.inputs.annualRate}%`],
+      ['Frequency', s => `${s.inputs.frequency} times/year`],
+      ['Term', s => `${s.inputs.years} years`],
+      ['Total Payments', s => s.inputs.totalPayments ?? 'N/A'],
+      ['Result', s => s.result.toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD'
+      })],
+      ['Interest Earned', s => s.interest === undefined ? 'N/A' :
+        s.interest.toLocaleString('en-US', {
+          style: 'currency',
+          currency: 'USD'
+        })]
+    ];
+
+    rows.forEach(([label, getValue]) => {
+      const row = document.createElement('tr');
+
+      const th = document.createElement('th');
+      th.textContent = label;
+      row.appendChild(th);
+
+      selectedScenarios.forEach(scenario => {
+        const td = document.createElement('td');
+        td.textContent = getValue(scenario);
+        row.appendChild(td);
+      });
+
+      table.appendChild(row);
+    });
+
+    scenarioComparison.innerHTML = '';
+    scenarioComparison.appendChild(table);
+  });
+
   setMode(mode);
 
   function showModeMessage(text, error = false) {
